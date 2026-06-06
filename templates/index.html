@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>resume.app - ATS Resume Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <div class="layout">
+        <!-- LEFT PANEL -->
+        <div class="left-panel">
+            <header>
+                <div class="logo">resume<span class="dot">.</span>app</div>
+                <div class="badges">
+                    <span class="badge blue">2-stage API</span>
+                    <span class="badge" id="health-badge">Checking...</span>
+                </div>
+            </header>
+
+            <form id="gen-form">
+                <div class="form-section">
+                    <div class="section-label">TARGET ROLE</div>
+                    <div class="row">
+                        <div class="col">
+                            <label>Company</label>
+                            <input type="text" id="f-company" required placeholder="e.g. Google">
+                        </div>
+                        <div class="col">
+                            <label>Role title</label>
+                            <input type="text" id="f-role" required placeholder="e.g. Backend Eng">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label>Role type</label>
+                            <select id="f-type" required>
+                                <option value="Java/Backend">Java/Backend</option>
+                                <option value="Full Stack">Full Stack</option>
+                                <option value="Frontend">Frontend</option>
+                                <option value="C++/Systems">C++/Systems</option>
+                                <option value="DevOps/Cloud">DevOps/Cloud</option>
+                                <option value="Data/Analytics">Data/Analytics</option>
+                                <option value="Internship">Internship</option>
+                                <option value="Software Engineer General">Software Engineer General</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label>Relocation city <span style="opacity:0.5;font-size:11px;">(optional)</span></label>
+                            <input type="text" id="f-relocation" placeholder="e.g. Bengaluru">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-label">JOB DESCRIPTION <span id="jd-count" style="margin-left: auto;">0</span>
+                        chars</div>
+                    <textarea id="f-jd" rows="12" required placeholder="Paste full job description here..."></textarea>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-label">AUTHENTICATION</div>
+                    <label>Google Gemini API Key</label>
+                    <div class="input-with-icon">
+                        <input type="password" id="f-key" required placeholder="AIza...">
+                        <button type="button" id="toggle-key" class="icon-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="note">Key stays in your browser. Never sent to our servers.</div>
+                </div>
+
+                <button type="submit" id="btn-gen" class="btn-primary">
+                    Generate Resume
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </form>
+
+            <footer>
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">Ready</span>
+                </div>
+                <div class="token-est">~1400 tokens</div>
+            </footer>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="right-panel">
+
+            <!-- STATE 1: IDLE -->
+            <div id="state-idle" class="state-container active">
+                <div class="center-content">
+                    <h1>Fill the form to generate</h1>
+                    <p class="subtitle">Our 2-stage pipeline parses the JD, selects the best projects, and writes a
+                        highly targeted ATS-friendly resume.</p>
+                    <div class="pipeline-chips">
+                        <div class="chip">01 JD analysis (Gemini Flash)</div>
+                        <div class="chip">02 Resume assembly (Gemini Flash)</div>
+                        <div class="chip">03 ATS validation (local)</div>
+                        <div class="chip">04 PDF / LaTeX output</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATE 2: LOADING -->
+            <div id="state-loading" class="state-container">
+                <div class="center-content">
+                    <div class="pipeline-track">
+                        <div class="pipe-step active" id="ps-1">
+                            <div class="step-icon">1</div>
+                            <div class="step-label">Analyzing JD</div>
+                        </div>
+                        <div class="pipe-line"></div>
+                        <div class="pipe-step" id="ps-2">
+                            <div class="step-icon">2</div>
+                            <div class="step-label">Assembling resume</div>
+                        </div>
+                        <div class="pipe-line"></div>
+                        <div class="pipe-step" id="ps-3">
+                            <div class="step-icon">3</div>
+                            <div class="step-label">ATS check</div>
+                        </div>
+                        <div class="pipe-line"></div>
+                        <div class="pipe-step" id="ps-4">
+                            <div class="step-icon">4</div>
+                            <div class="step-label">Output</div>
+                        </div>
+                    </div>
+                    <div id="loading-msg" class="loading-msg">Extracting keywords from Job Description...</div>
+                </div>
+            </div>
+
+            <!-- STATE 3: RESULT -->
+            <div id="state-result" class="state-container">
+                <div class="result-header">
+                    <div class="download-bar">
+                        <button class="btn-secondary" id="btn-copy">Copy text</button>
+                        <a id="btn-txt" class="btn-secondary" href="#" target="_blank">TXT</a>
+                        <a id="btn-tex" class="btn-secondary" href="#" target="_blank">LaTeX</a>
+                        <a id="btn-pdf" class="btn-secondary" href="#" target="_blank">PDF</a>
+                    </div>
+                </div>
+
+                <div id="pdf-notice" class="notice amber">PDF via pdflatex not available — download LaTeX and compile
+                    with: pdflatex resume.tex</div>
+
+                <div class="ats-card">
+                    <div class="ats-header">
+                        <div class="ats-score" id="ats-score">0</div>
+                        <div class="ats-info">
+                            <div class="ats-title">ATS Keyword Match</div>
+                            <div class="ats-bar-bg">
+                                <div class="ats-bar-fill" id="ats-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-chip" id="meta-role"></span>
+                        <span class="meta-chip" id="meta-seniority"></span>
+                        <span class="meta-chip" id="meta-kw-count"></span>
+                        <span class="meta-chip" id="meta-projects"></span>
+                    </div>
+                    <div class="kw-container" id="kw-container"></div>
+                </div>
+
+                <div class="resume-output" id="resume-output">
+                    <!-- resume blocks injected by JS -->
+                </div>
+            </div>
+
+            <!-- STATE 4: ERROR -->
+            <div id="state-error" class="state-container">
+                <div class="center-content">
+                    <div class="error-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                        </svg>
+                    </div>
+                    <h2 id="error-title">Generation Failed</h2>
+                    <p id="error-msg">Something went wrong.</p>
+                    <button class="btn-secondary mt-4" onclick="showState('idle')">Try again</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>

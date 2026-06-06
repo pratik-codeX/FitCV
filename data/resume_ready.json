@@ -1,0 +1,81 @@
+{
+  "personal": {
+    "name": "Pratik Nanaso Raut",
+    "email": "pratikraut.codex@gmail.com",
+    "phone": "91+ 8600475940",
+    "linkedin": "https://www.linkedin.com/in/pratik-codex/",
+    "github": "https://github.com/pratik-codeX",
+    "location": "Pune, Maharashtra, India"
+  },
+  "education": [
+    {
+      "degree": "Master of Computer Applications (MCA)",
+      "university": "Savitribai Phule Pune University (SPPU)",
+      "year": "2024 – 2026",
+      "pattern": "2024 Pattern",
+      "cgpa": "7.24"
+    },
+    {
+      "degree": "Bachelor of Computer Applications (BCA)",
+      "university": "",
+      "year": "2021 – 2024",
+      "pattern": "",
+      "cgpa": "75%"
+    }
+  ],
+  "skills": {
+    "languages": [
+      "Java",
+      "C",
+      "C++",
+      "Python",
+      "JavaScript",
+      "SQL",
+      "Bash"
+    ],
+    "frameworks": [
+      "Spring Boot",
+      "React.js",
+      "Node.js",
+      "Express.js",
+      "Flask",
+      "Hibernate"
+    ],
+    "databases": [
+      "MySQL",
+      "PostgreSQL",
+      "MongoDB",
+      "Redis"
+    ],
+    "tools": [
+      "Git",
+      "GitHub",
+      "Docker",
+      "Maven",
+      "Postman",
+      "VS Code",
+      "IntelliJ IDEA"
+    ],
+    "platforms": [
+      "Linux",
+      "Ubuntu",
+      "AWS EC2",
+      "AWS S3",
+      "GCP Basics"
+    ],
+    "concepts": [
+      "REST API",
+      "OOP",
+      "Data Structures",
+      "Algorithms",
+      "Agile",
+      "CI/CD",
+      "MVC",
+      "JDBC",
+      "Multithreading",
+      "Design Patterns",
+      "Microservices"
+    ]
+  },
+  "summary_base": "MCA student at SPPU with strong fundamentals in Java, C/C++, and full-stack development."
+}
