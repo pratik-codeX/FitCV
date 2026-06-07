@@ -1,0 +1,104 @@
+{
+  "summary": "MCA candidate with strong foundation in software development principles and methodologies, Java, and C++ \u2014 a proactive learner eager to contribute to software engineering.",
+  "skills": {
+    "Languages": [
+      "Java",
+      "C",
+      "C++",
+      "Python (basics)",
+      "JavaScript",
+      "SQL"
+    ],
+    "Backend": [
+      "Spring Boot",
+      "Spring Security",
+      "Hibernate",
+      "JDBC",
+      "REST APIs",
+      "JWT"
+    ],
+    "Databases": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Tools": [
+      "Git",
+      "GitHub",
+      "Maven",
+      "Postman",
+      "IntelliJ IDEA"
+    ],
+    "Concepts": [
+      "SDLC",
+      "Object-Oriented Programming (OOP)",
+      "Data Structures & Algorithms (DSA)",
+      "Design Patterns",
+      "Problem Solving",
+      "Time Complexity Analysis",
+      "REST API Design",
+      "Database Optimization",
+      "RBAC",
+      "JWT Authentication",
+      "Microservice Fundamentals",
+      "API Security",
+      "Multi-Tenant Architecture",
+      "Multithreading"
+    ],
+    "Exposure": [
+      "AWS Fundamentals",
+      "AI/ML Fundamentals",
+      "Big Data Concepts"
+    ]
+  },
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed and enhanced ERP backend modules using Java, Spring Boot, Hibernate, and REST APIs for employee and operational workflows.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Concurrent FTP Server",
+      "subtitle": "Multi-Client File Transfer Protocol Server",
+      "tech": "C, POSIX Threads, TCP Sockets, Multithreading",
+      "bullets": [
+        "Engineered concurrent client handling using POSIX threads over TCP sockets, supporting simultaneous file transfers without data corruption.",
+        "Implemented thread-safe resource management using mutex and semaphore primitives, eliminating race conditions under concurrent load.",
+        "Designed application-layer protocol over raw sockets handling authentication, file listing, upload, and download command sequences."
+      ]
+    },
+    {
+      "name": "Customised Virtual File System (CVFS)",
+      "subtitle": "In-Memory Linux-like File Manager",
+      "tech": "C, C++, Data Structures, OS Concepts",
+      "bullets": [
+        "Simulated Linux file system operations (open, read, write, lseek) in C++ using inode-based metadata management and a custom shell interpreter.",
+        "Achieved O(1) file lookup by designing hash table-based inode indexing with chaining for collision resolution.",
+        "Implemented in-memory file allocation table using C++ classes managing file permissions, ownership, and hierarchical directory traversal."
+      ]
+    },
+    {
+      "name": "ProcMemInspector",
+      "subtitle": "Linux Process Memory Layout Analyzer",
+      "tech": "C, Linux Internals, /proc Filesystem",
+      "bullets": [
+        "Developed a /proc filesystem parser in C to extract and display virtual memory layout of live Linux processes including stack, heap, data, BSS, and mapped library segments.",
+        "Implemented process statistics monitoring by reading /proc/[pid]/maps and /proc/[pid]/status with structured output formatting.",
+        "Analyzed virtual address space segmentation demonstrating memory isolation boundaries and shared library loading behavior."
+      ]
+    }
+  ],
+  "strengths": [
+    "Strong foundation in Data Structures, Algorithms, and Object-Oriented Design.",
+    "Hands-on experience building concurrent, multi-tenant, and performance-optimized Java applications.",
+    "Analytical problem-solving with ability to design and develop solutions under time-bound delivery constraints.",
+    "Ability to rapidly learn unfamiliar technologies and deliver production-ready solutions under tight deadlines."
+  ]
+}

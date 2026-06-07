@@ -1,60 +1,85 @@
-# resume.app
+# FitCV: ATS-Optimized Resume Generator
 
-ATS-optimized resume generator. Two focused API calls, zero manual fixes.
+FitCV is an intelligent, ATS-optimized resume generator that dynamically tailors your resume to a specific Job Description (JD). It uses AI to extract key requirements from the JD and automatically selects your most relevant projects to build a targeted resume with high keyword coverage.
 
-## Setup (5 minutes)
+## Features
+- **Dynamic Project Selection**: Automatically picks the best projects from your master list based on JD keywords.
+- **ATS-Optimized Formatting**: Generates clean, parseable plain text and LaTeX/PDF formats.
+- **Local Data Control**: Your personal information and project data are securely stored locally in JSON files.
+- **AI-Powered Assembly**: Leverages AI (e.g., Claude Haiku) to assemble the final targeted bullet points and summary.
 
-```bash
-# 1. Install Python deps
-pip3 install -r requirements.txt --break-system-packages
+## Prerequisites
+- Python 3.8+
+- [pdflatex](https://www.tug.org/texlive/) (Optional, required if you want to generate PDF output directly)
 
-# 2. (Optional) Install pdflatex for PDF output
-sudo apt install texlive-latex-extra texlive-fonts-recommended -y
+## Installation & Setup
 
-# 3. Run
-chmod +x run.sh && ./run.sh
+1. **Clone the repository and navigate to the project directory**
 
-# 4. Open browser
-# http://localhost:5000
-```
+2. **Install Python dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Customize your data
+3. **Install LaTeX (Optional but recommended for PDF generation)**
+   - **Ubuntu/Debian**:
+     ```bash
+     sudo apt install texlive-latex-extra texlive-fonts-recommended -y
+     ```
+   - **Windows**: Install [MiKTeX](https://miktex.org/)
+   - **macOS**: Install [MacTeX](https://tug.org/mactex/)
 
-Before generating, edit these two files with YOUR real info:
+## 🚀 Customizing Your Resume Data (IMPORTANT)
 
-### `data/resume_ready.json`
-Fill in: name, email, phone, LinkedIn, GitHub, CGPA, certifications.
+**To generate your own personalized resume, you MUST replace the default data with your actual information.**
 
-### `data/projects_master.json`
-Replace the sample projects with your actual projects.
-Each project has:
-- `tags` — keywords that trigger auto-selection (match these to JD terms)
-- `bullets` — your real bullet points (quantified impact)
+The application reads your profile and project data from two JSON files located in the `data/` folder. Open these files in any text editor and update them according to your specific profile:
 
-## How it works
+### 1. `data/resume_ready.json`
+This file contains your static, personal information. Update the following sections:
+- **`personal`**: Name, email, phone, LinkedIn, GitHub, Location.
+- **`education`**: Your degrees, universities, graduation years, and scores/CGPA.
+- **`experience`**: Your work history, internships, roles, and bullet points.
+- **`skills_pool`**: Categorized lists of your technical skills (languages, frontend, backend, databases, tools).
+- **`strengths_pool`**: High-level summaries of your technical strengths.
 
-```
-JD Input
-  → Stage 1: claude-haiku extracts keywords, role type, required skills (~400 tokens)
-  → Project auto-selection: top 3 projects by tag-match score
-  → Stage 2: claude-haiku assembles resume with targeted keywords (~950 tokens)
-  → ATS validation: local keyword coverage scoring
-  → LaTeX injection into frozen template
-  → pdflatex compile → PDF
-```
+### 2. `data/projects_master.json`
+This file serves as your "Project Bank". You should list *all* your projects here. The app will automatically pick the most relevant ones.
+- **`id` & `name`**: Unique identifier and display name.
+- **`tags`**: Critical! Add keywords related to the project (e.g., "Java", "Spring Boot", "React", "AWS"). The app matches these tags against the JD to select the best projects for that specific job.
+- **`bullets`**: The actual bullet points explaining what you did, the tech used, and the impact/quantifiable results.
 
-Total: ~1400 tokens per resume (Haiku pricing ≈ ₹0.07 per resume)
+## Running the Application
 
-## Output files
+Once you have updated the JSON files with your data:
 
-Generated resumes saved to `outputs/` as:
-- `.txt` — plain text (copy into any format)
-- `.tex` — LaTeX source (compile with pdflatex)
-- `.pdf` — compiled PDF (if pdflatex installed)
+1. **Start the application**
+   - **Linux/macOS**:
+     ```bash
+     chmod +x run.sh
+     ./run.sh
+     ```
+   - **Windows**:
+     ```cmd
+     run.bat
+     ```
 
-## API Key
+2. **Open your browser**
+   Navigate to [http://localhost:5000](http://localhost:5000)
 
-Get your key from https://console.anthropic.com
-Uses `claude-haiku-4-5-20251001` — fastest, cheapest model.
-Key is sent only to Anthropic's API, never stored.
-# FitCV
+3. **Generate a Resume**
+   - Paste the Job Description (JD) into the web interface.
+   - Enter your API Key if requested.
+   - Click generate to get your tailored resume!
+
+## Output Files
+Generated resumes are saved to the `outputs/` directory:
+- `*.txt` — Plain text version, great for copying into web forms or Word documents.
+- `*.tex` — LaTeX source file.
+- `*.pdf` — The beautifully compiled PDF document (requires `pdflatex`).
+
+## How the AI Generation Works
+1. **Extraction**: The AI extracts keywords, role types, and required skills from the provided JD.
+2. **Matching**: The app scores your projects from `projects_master.json` against the extracted JD tags.
+3. **Assembly**: The top projects and your personal info from `resume_ready.json` are combined. The AI tailors the summary and keywords.
+4. **Export**: The tailored data is injected into a LaTeX template and compiled into a PDF.
