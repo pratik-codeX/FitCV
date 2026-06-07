@@ -2,80 +2,150 @@
   "personal": {
     "name": "Pratik Nanaso Raut",
     "email": "pratikraut.codex@gmail.com",
-    "phone": "91+ 8600475940",
-    "linkedin": "https://www.linkedin.com/in/pratik-codex/",
+    "phone": "+91 8600475940",
+    "linkedin": "https://linkedin.com/in/pratik-raut-85248b319",
     "github": "https://github.com/pratik-codeX",
-    "location": "Pune, Maharashtra, India"
+    "location": "Pune, Maharashtra"
   },
   "education": [
     {
       "degree": "Master of Computer Applications (MCA)",
-      "university": "Savitribai Phule Pune University (SPPU)",
-      "year": "2024 – 2026",
-      "pattern": "2024 Pattern",
-      "cgpa": "7.24"
+      "university": "Dnyansagar Institute of Management and Research, Pune (SPPU)",
+      "year": "2026",
+      "status": "Pursuing",
+      "score": "7.24 SGPA"
     },
     {
       "degree": "Bachelor of Computer Applications (BCA)",
-      "university": "",
-      "year": "2021 – 2024",
-      "pattern": "",
-      "cgpa": "75%"
+      "university": "C.T. Bora College, Shirur (SPPU)",
+      "year": "2024",
+      "status": "",
+      "score": "73.34%"
+    },
+    {
+      "degree": "Higher Secondary Certificate (HSC)",
+      "university": "Maharashtra State Board",
+      "year": "2021",
+      "status": "",
+      "score": "75%"
     }
   ],
-  "skills": {
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed ERP application modules using Java and Spring Boot, implementing RESTful API contracts for scalable service architecture.",
+        "Operated in Agile sprint workflow using Git for version control, code reviews, sprint planning, and technical documentation.",
+        "Designed and tested application modules with systematic debugging, reducing defect reopen rate by 40%."
+      ]
+    }
+  ],
+  "skills_pool": {
     "languages": [
       "Java",
       "C",
       "C++",
-      "Python",
+      "Python (basics)",
       "JavaScript",
-      "SQL",
-      "Bash"
+      "SQL"
     ],
-    "frameworks": [
+    "backend": [
       "Spring Boot",
-      "React.js",
+      "Spring Security",
+      "Hibernate",
+      "JDBC",
+      "REST APIs",
+      "JWT"
+    ],
+    "frontend": [
+      "React",
+      "Angular",
+      "HTML5",
+      "CSS3",
+      "Bootstrap"
+    ],
+    "node_stack": [
       "Node.js",
-      "Express.js",
-      "Flask",
-      "Hibernate"
+      "Express.js"
+    ],
+    "cpp_stack": [
+      "STL",
+      "POSIX APIs",
+      "Socket Programming",
+      "POSIX Threads (pthreads)",
+      "Memory Management"
     ],
     "databases": [
       "MySQL",
-      "PostgreSQL",
-      "MongoDB",
-      "Redis"
+      "MongoDB"
     ],
-    "tools": [
+    "tools_java": [
       "Git",
       "GitHub",
-      "Docker",
       "Maven",
       "Postman",
-      "VS Code",
       "IntelliJ IDEA"
     ],
-    "platforms": [
-      "Linux",
-      "Ubuntu",
-      "AWS EC2",
-      "AWS S3",
-      "GCP Basics"
+    "tools_cpp": [
+      "Git",
+      "GitHub",
+      "GCC/G++",
+      "GDB",
+      "Make",
+      "VS Code",
+      "Linux (Ubuntu)"
     ],
-    "concepts": [
-      "REST API",
-      "OOP",
-      "Data Structures",
-      "Algorithms",
-      "Agile",
-      "CI/CD",
-      "MVC",
-      "JDBC",
-      "Multithreading",
-      "Design Patterns",
-      "Microservices"
+    "tools_general": [
+      "Git",
+      "GitHub",
+      "Postman",
+      "VS Code"
+    ],
+    "concepts_core": [
+      "Object-Oriented Programming (OOP)",
+      "Data Structures & Algorithms (DSA)",
+      "SDLC"
+    ],
+    "concepts_backend": [
+      "REST API Design",
+      "Database Optimization",
+      "RBAC",
+      "JWT Authentication",
+      "Multithreading"
+    ],
+    "concepts_cpp": [
+      "OOP Design Patterns",
+      "Dynamic Memory Management",
+      "Template Programming",
+      "Pointer Arithmetic"
+    ],
+    "concepts_systems": [
+      "POSIX System Calls",
+      "Socket Programming",
+      "Memory Management",
+      "Linux Internals",
+      "Concurrent Programming"
+    ],
+    "exposure": [
+      "AI/ML fundamentals",
+      "Cloud computing basics (AWS)",
+      "Big Data concepts"
     ]
   },
-  "summary_base": "MCA student at SPPU with strong fundamentals in Java, C/C++, and full-stack development."
+  "strengths_pool": {
+    "S1": "Strong foundation in Data Structures, Algorithms, and Object-Oriented Design.",
+    "S2": "Proficient in backend application development, REST API design, and database-driven systems.",
+    "S3": "Hands-on experience building concurrent, multi-tenant, and performance-optimized Java applications.",
+    "S4": "Experience in Agile development workflows, Git-based version control, and collaborative engineering.",
+    "S5": "Strong debugging, query optimization, and software architecture capabilities.",
+    "S6": "Strong foundation in C++ OOP, STL containers, templates, and dynamic memory management.",
+    "S7": "Proficient in POSIX system calls, concurrent programming, and Linux kernel interface design.",
+    "S8": "Hands-on experience implementing OS-level components: file systems, network servers, and memory analyzers.",
+    "S9": "Analytical problem-solving with ability to design and develop solutions under time-bound delivery constraints.",
+    "S10": "Active GitHub contributor with documented production-oriented and systems-level project portfolio.",
+    "S11": "Good understanding of Linux internals, /proc filesystem, virtual memory layout, and process management."
+  }
 }

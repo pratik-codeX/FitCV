@@ -1,14 +1,22 @@
 {
   "_readme": "This is the SOURCE OF TRUTH for all projects. Do not inject JD logic here. Each project has fixed bullets, fixed tags, fixed priority. The resume prompt reads this file and selects based on jd_profile.json tags.",
-
   "projects": [
-
     {
       "id": "paystride",
       "name": "PayStride",
       "subtitle": "Multi-Tenant SaaS Payroll Management System",
       "tech_display": "Java, Spring Boot, MySQL, Hibernate, REST API, JWT",
-      "tags": ["java", "spring-boot", "rest-api", "jwt", "mysql", "hibernate", "rbac", "multitenant", "agile"],
+      "tags": [
+        "java",
+        "spring-boot",
+        "rest-api",
+        "jwt",
+        "mysql",
+        "hibernate",
+        "rbac",
+        "multitenant",
+        "agile"
+      ],
       "priority": 1,
       "bullets": [
         "Architected multi-tenant RBAC system using Spring Security and JWT, enforcing complete data isolation across all API endpoints.",
@@ -16,13 +24,20 @@
         "Engineered BigDecimal payroll computation engine handling statutory deductions (PF 12%, ESI 0.75%) and 1.5x overtime multipliers with zero precision loss."
       ]
     },
-
     {
       "id": "edutrack",
       "name": "EduTrack",
       "subtitle": "Student Management Portal",
       "tech_display": "Java, Spring Boot, MongoDB, REST API",
-      "tags": ["java", "spring-boot", "rest-api", "mongodb", "nosql", "crud", "validation"],
+      "tags": [
+        "java",
+        "spring-boot",
+        "rest-api",
+        "mongodb",
+        "nosql",
+        "crud",
+        "validation"
+      ],
       "priority": 1,
       "bullets": [
         "Developed RESTful CRUD APIs over Spring Boot handling 500+ student records with optimized MongoDB aggregation queries.",
@@ -30,13 +45,20 @@
         "Implemented dual-layer validation (client-side and server-side) reducing data entry errors by 25%."
       ]
     },
-
     {
       "id": "cvfs",
       "name": "Customised Virtual File System (CVFS)",
       "subtitle": "In-Memory Linux-like File Manager",
       "tech_display": "C, C++, Data Structures, OS Concepts",
-      "tags": ["c", "cpp", "os", "data-structures", "memory-management", "systems", "oop"],
+      "tags": [
+        "c",
+        "cpp",
+        "os",
+        "data-structures",
+        "memory-management",
+        "systems",
+        "oop"
+      ],
       "priority": 1,
       "bullets": [
         "Simulated Linux file system operations (open, read, write, lseek) in C++ using inode-based metadata management and a custom shell interpreter.",
@@ -44,13 +66,21 @@
         "Implemented in-memory file allocation table using C++ classes managing file permissions, ownership, and hierarchical directory traversal."
       ]
     },
-
     {
       "id": "ftp-server",
       "name": "Concurrent FTP Server",
       "subtitle": "Multi-Client File Transfer Protocol Server",
       "tech_display": "C, POSIX Threads, TCP Sockets, Multithreading",
-      "tags": ["c", "cpp", "posix", "multithreading", "sockets", "networking", "systems", "concurrent"],
+      "tags": [
+        "c",
+        "cpp",
+        "posix",
+        "multithreading",
+        "sockets",
+        "networking",
+        "systems",
+        "concurrent"
+      ],
       "priority": 1,
       "bullets": [
         "Engineered concurrent client handling using POSIX threads over TCP sockets, supporting simultaneous file transfers without data corruption.",
@@ -58,13 +88,19 @@
         "Designed application-layer protocol over raw sockets handling authentication, file listing, upload, and download command sequences."
       ]
     },
-
     {
       "id": "custom-dbms",
       "name": "Customized DBMS",
       "subtitle": "Relational Database Engine in C++",
       "tech_display": "C++, SQL, Data Structures, OOP",
-      "tags": ["cpp", "data-structures", "oop", "sql", "systems", "algorithms"],
+      "tags": [
+        "cpp",
+        "data-structures",
+        "oop",
+        "sql",
+        "systems",
+        "algorithms"
+      ],
       "priority": 1,
       "bullets": [
         "Designed SQL query parser in C++ supporting full DDL (CREATE, DROP) and DML (INSERT, SELECT, UPDATE, DELETE) operations.",
@@ -72,13 +108,20 @@
         "Simulated multi-table relational schema with join operations, constraint enforcement, and STL-based record storage."
       ]
     },
-
     {
       "id": "procmem",
       "name": "ProcMemInspector",
       "subtitle": "Linux Process Memory Layout Analyzer",
       "tech_display": "C, Linux Internals, /proc Filesystem",
-      "tags": ["c", "cpp", "linux", "memory-management", "os", "systems", "proc-filesystem"],
+      "tags": [
+        "c",
+        "cpp",
+        "linux",
+        "memory-management",
+        "os",
+        "systems",
+        "proc-filesystem"
+      ],
       "priority": 1,
       "bullets": [
         "Developed a /proc filesystem parser in C to extract and display virtual memory layout of live Linux processes including stack, heap, data, BSS, and mapped library segments.",
@@ -86,13 +129,18 @@
         "Analyzed virtual address space segmentation demonstrating memory isolation boundaries and shared library loading behavior."
       ]
     },
-
     {
       "id": "command-suite",
       "name": "Command Suite",
       "subtitle": "Re-implementation of Linux Core Utilities",
       "tech_display": "C, Linux System Programming, POSIX System Calls",
-      "tags": ["c", "posix", "linux", "systems", "os"],
+      "tags": [
+        "c",
+        "posix",
+        "linux",
+        "systems",
+        "os"
+      ],
       "priority": 2,
       "bullets": [
         "Re-implemented core Linux utilities (ls, ps, mv, touch, uname) using POSIX system calls including stat(), opendir(), and getpid().",
@@ -100,13 +148,18 @@
         "Implemented full flag-based argument parsing matching standard GNU utility behavior and POSIX error code conventions."
       ]
     },
-
     {
       "id": "system-logger",
       "name": "System Logger",
       "subtitle": "Advanced Linux System Activity Logger",
       "tech_display": "C, Linux System Programming, File Locking",
-      "tags": ["c", "linux", "systems", "posix", "file-io"],
+      "tags": [
+        "c",
+        "linux",
+        "systems",
+        "posix",
+        "file-io"
+      ],
       "priority": 2,
       "bullets": [
         "Designed timestamp-driven log rotation mechanism integrated with Linux syslog facilities for centralized event tracking.",
@@ -114,13 +167,20 @@
         "Enforced concurrent write safety using fcntl() file locking, preventing log corruption under multi-process scenarios."
       ]
     },
-
     {
       "id": "restaurant-app",
       "name": "Restaurant Record App",
       "subtitle": "Full-Stack Dining Management System",
       "tech_display": "MongoDB, Express.js, Angular, Node.js",
-      "tags": ["angular", "nodejs", "express", "mongodb", "mean-stack", "full-stack", "rest-api"],
+      "tags": [
+        "angular",
+        "nodejs",
+        "express",
+        "mongodb",
+        "mean-stack",
+        "full-stack",
+        "rest-api"
+      ],
       "priority": 2,
       "bullets": [
         "Developed CRUD REST APIs using Express.js and MongoDB with JWT token-based authentication for secure data access.",
@@ -128,13 +188,20 @@
         "Designed modular routing architecture supporting role-based menu and record visibility."
       ]
     },
-
     {
       "id": "event-hub",
       "name": "Event Hub",
       "subtitle": "Real-Time Event Coordination Portal",
       "tech_display": "Angular, Node.js, Express, Socket.io",
-      "tags": ["angular", "nodejs", "express", "websocket", "real-time", "full-stack", "mean-stack"],
+      "tags": [
+        "angular",
+        "nodejs",
+        "express",
+        "websocket",
+        "real-time",
+        "full-stack",
+        "mean-stack"
+      ],
       "priority": 2,
       "bullets": [
         "Integrated Socket.io WebSocket layer for real-time event status broadcast to connected clients with sub-second latency.",
@@ -142,6 +209,5 @@
         "Implemented event registration workflows with Express.js APIs and MongoDB document persistence."
       ]
     }
-
   ]
 }

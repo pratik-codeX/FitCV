@@ -2,11 +2,23 @@ import os
 import re
 import json
 import time
+import hashlib
 import subprocess
 import shutil
 from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 import requests
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GEMINI API KEY SETUP (FREE — no credit card required)
+# 1. Go to: https://aistudio.google.com
+# 2. Sign in with your Google account
+# 3. Click "Get API Key" → "Create API key"
+# 4. Copy the key — it starts with "AIza..."
+# 5. Paste it into the app's API key field
+# Model used: gemini-2.5-flash-preview (best free tier — 1M context, fast)
+# Free tier limits: 15 requests/min, 1500 requests/day — more than enough
+# ─────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
 CORS(app)
@@ -14,6 +26,16 @@ CORS(app)
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), 'outputs')
 DATA_DIR    = os.path.join(os.path.dirname(__file__), 'data')
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUEST CACHE — avoids burning API quota on identical requests
+# Cache is in-memory (cleared on server restart). Key = hash of JD+role+company.
+# ─────────────────────────────────────────────────────────────────────────────
+_RESUME_CACHE: dict = {}
+
+def make_cache_key(jd: str, company: str, role: str, role_type: str) -> str:
+    raw = f"{jd.strip().lower()}|{company.strip().lower()}|{role.strip().lower()}|{role_type.strip().lower()}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LATEX ESCAPING
@@ -67,7 +89,7 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
         degree = esc(edu.get('degree', ''))
         year   = esc(edu.get('year', ''))
         status = edu.get('status', '')
-        score  = esc(edu.get('score', ''))
+        score  = esc(edu.get('score', edu.get('cgpa', '')))
         uni    = esc(edu.get('university', edu.get('institution', '')))
         year_str = f"{year} $|$ {esc(status)}" if status else year
         edu_latex_lines.append(
@@ -82,6 +104,7 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
         r"\usepackage{enumitem}",
         r"\usepackage[hidelinks,unicode]{hyperref}",
         r"\usepackage[T1]{fontenc}",
+        r"\usepackage{lmodern}",
         r"\usepackage{titlesec}",
         r"\usepackage{array}",
         # FIX 4: microtype + DisableLigatures for clean ATS extraction
@@ -227,6 +250,81 @@ def score_ats_from_pdf(pdf_path: str, keywords: list) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GEMINI API CALLER — auto-retry on 429, auto-skip on 404 model-not-found
+# ─────────────────────────────────────────────────────────────────────────────
+def gemini_post(url: str, headers: dict, payload: dict, stage: str = "API") -> dict:
+    """
+    Call Gemini REST API.
+    200  → return JSON
+    429  → 1 quick retry (5s), then raise tagged '429_RATE_LIMITED' so caller tries next model
+    503  → 1 retry (10s wait for overload to clear), then raise tagged '503_OVERLOADED'
+    404  → raise tagged '404_MODEL_NOT_FOUND' so caller tries next model
+    else → raise with status + body
+    """
+    model_name = url.split('models/')[-1].split(':')[0]
+    for attempt in range(2):   # max 2 tries per model (0, 1)
+        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+        if resp.status_code == 200:
+            return resp.json()
+        if resp.status_code == 429:
+            if attempt == 0:
+                print(f"[{stage}] 429 on '{model_name}' — waiting 5s then trying once more...", flush=True)
+                time.sleep(5)
+                continue
+            raise Exception(f"429_RATE_LIMITED:{model_name}")
+        if resp.status_code == 503:
+            if attempt == 0:
+                print(f"[{stage}] 503 on '{model_name}' (overloaded) — waiting 10s then retrying...", flush=True)
+                time.sleep(10)
+                continue
+            raise Exception(f"503_OVERLOADED:{model_name}")
+        if resp.status_code == 404:
+            raise Exception(f"404_MODEL_NOT_FOUND:{model_name}")
+        raise Exception(f"{stage} API error ({resp.status_code}): {resp.text[:400]}")
+    raise Exception(f"{stage} API call failed after all retries")
+
+
+def gemini_call(models_priority: list, api_key: str,
+                headers: dict, payload: dict, stage: str) -> dict:
+    """
+    Try each model in models_priority until one succeeds.
+    Skips to the next model on both 404 (not found) and 429 (rate limited).
+    Raises only if ALL models fail.
+    """
+    skipped = []
+    last_err = None
+    for model in models_priority:
+        url = (f"https://generativelanguage.googleapis.com/v1beta"
+               f"/models/{model}:generateContent?key={api_key}")
+        print(f"[{stage}] Trying model: {model}", flush=True)
+        try:
+            result = gemini_post(url, headers, payload, stage=stage)
+            print(f"[{stage}] ✓ Success with model: {model}", flush=True)
+            return result
+        except Exception as exc:
+            last_err = exc
+            exc_str = str(exc)
+            if "404_MODEL_NOT_FOUND" in exc_str:
+                print(f"[{stage}] '{model}' not found — trying next model...", flush=True)
+                skipped.append(f"{model}(404)")
+                continue
+            if "429_RATE_LIMITED" in exc_str:
+                print(f"[{stage}] '{model}' rate limited — trying next model...", flush=True)
+                skipped.append(f"{model}(429)")
+                continue
+            if "503_OVERLOADED" in exc_str:
+                print(f"[{stage}] '{model}' overloaded — trying next model...", flush=True)
+                skipped.append(f"{model}(503)")
+                continue
+            raise  # any other error (400, 403, 500, etc.) is a hard failure
+    # All models exhausted
+    raise Exception(
+        f"{stage}: All models exhausted. Skipped: {skipped}. Last error: {last_err}. "
+        f"Check https://ai.dev/rate-limit for quota info."
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/')
@@ -264,24 +362,50 @@ def generate():
     if len(jd.strip()) < 100:
         return jsonify({"error": "JD too short — paste full job description"}), 400
 
+    # ── Cache check — return instantly if same request was already processed ──
+    cache_key = make_cache_key(jd, company, role, role_type)
+    if cache_key in _RESUME_CACHE:
+        print(f"[Cache] HIT for key {cache_key} — returning cached result", flush=True)
+        cached = _RESUME_CACHE[cache_key].copy()
+        cached["from_cache"] = True
+        return jsonify(cached)
+    print(f"[Cache] MISS for key {cache_key} — running pipeline", flush=True)
+
     try:
-        # ── Model discovery ───────────────────────────────────────────────────
-        target_model = 'models/gemini-1.5-flash'
+        # ── Model priority: STABLE models first (high quota), preview models last ──
+        # gemini-2.0-flash and gemini-1.5-flash have 1500 RPD free tier limits.
+        # gemini-2.5-flash-preview has ~50 RPD — exhausted quickly, used as last resort.
+        GEMINI_MODELS_PRIORITY = [
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.5-flash-preview-05-20',
+            'gemini-2.0-flash',           # retired but kept as last resort
+        ]
+
+        # Filter to models confirmed available for this API key (keeps order)
         try:
             list_resp = requests.get(
-                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}")
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+                timeout=8
+            )
             if list_resp.status_code == 200:
-                available = [m['name'] for m in list_resp.json().get('models', [])
-                             if 'generateContent' in m.get('supportedGenerationMethods', [])]
-                for pref in ['models/gemini-2.5-flash','models/gemini-2.0-flash',
-                             'models/gemini-1.5-flash-latest','models/gemini-1.5-flash']:
-                    if pref in available:
-                        target_model = pref
-                        break
-        except Exception as e:
-            print("Model discovery failed:", e)
+                available_names = [
+                    m['name'].replace('models/', '')
+                    for m in list_resp.json().get('models', [])
+                    if 'generateContent' in m.get('supportedGenerationMethods', [])
+                ]
+                confirmed = [m for m in GEMINI_MODELS_PRIORITY if m in available_names]
+                print(f"[Model discovery] Confirmed in list: {confirmed}", flush=True)
+                # Only update priority if we confirmed at least 2 models
+                # (keep full list as fallback so gemini_call can try all)
+                if len(confirmed) >= 2:
+                    GEMINI_MODELS_PRIORITY = confirmed
+            else:
+                print(f"[Model discovery] HTTP {list_resp.status_code} — using default list", flush=True)
+        except Exception as disc_err:
+            print(f"[Model discovery] Error: {disc_err} — using default list", flush=True)
 
-        url     = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={api_key}"
+        print(f"[Model] Will try in order: {GEMINI_MODELS_PRIORITY}", flush=True)
         headers = {'Content-Type': 'application/json'}
 
         # ── Load candidate data ───────────────────────────────────────────────
@@ -312,15 +436,13 @@ Category: {role_type}
 JD:
 {jd[:3000]}"""
 
-        resp1 = requests.post(url, headers=headers, json={
+        resp1_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
             "contents": [{"parts": [{"text": stage1_prompt}]}],
             "generationConfig": {"maxOutputTokens": 500}
-        })
-        if resp1.status_code != 200:
-            raise Exception(f"Stage 1 API error ({resp1.status_code}): {resp1.text[:300]}")
+        }, stage="Stage 1")
 
         try:
-            raw1 = resp1.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+            raw1 = resp1_json['candidates'][0]['content']['parts'][0]['text'].strip()
             raw1 = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw1).strip()
             stage1 = json.loads(raw1)
         except Exception:
@@ -384,73 +506,72 @@ JD:
         # FIX 2: LLM outputs structured JSON, not plain text
         stage2_prompt = f"""You are an expert resume writer. Output ONLY valid JSON, no markdown, no explanation.
 
-STRICT RULES:
-1. Output structured JSON only — schema shown below
-2. DO NOT include name, email, phone, links, location in ANY field — header is injected separately
-3. DO NOT include education in ANY field — it is injected separately from JSON
-4. Use ONLY the skills provided in AVAILABLE_SKILLS — no additions, no fabrication
-5. Use strong action verbs: Engineered, Architected, Designed, Optimized, Implemented, Developed
-6. Every project bullet must include a measurable metric or outcome
-7. Summary: exactly 2 sentences. No "passionate/motivated/eager/excited". Engineer-profile tone only.
-8. Each project must have exactly 3 bullets
-9. Experience bullets: exactly 3 bullets, use verbatim from CANDIDATE_EXPERIENCE
-10. Strengths: exactly 4 items, engineering capabilities only, no soft skills
-11. Weave JD keywords naturally into bullets and summary — never list them separately
-12. Skills: reorder items within each category to put JD-relevant ones first. Do NOT add new items.
+CRITICAL RULES (violations = unusable resume):
+1. Output ONLY the JSON object below. Nothing before or after it.
+2. DO NOT include name, email, phone, links, or location anywhere — header is auto-injected.
+3. DO NOT include education anywhere — it is auto-injected from data.
+4. Use ONLY skills listed in AVAILABLE_SKILLS. Zero additions. Zero fabrication.
+5. Summary: EXACTLY 2 sentences. Follow this format strictly:
+   Sentence 1: "[Degree] candidate with strong foundation in [keyword1], [keyword2], and [keyword3] — [what they do]."
+   Sentence 2: "Hands-on experience [specific project achievement] using [tech stack] in [context]."
+   FORBIDDEN openers: "Highly", "Results-driven", "Passionate", "Motivated", "Eager", "Innovative", "Dynamic"
+6. Each project: EXACTLY 3 bullets. Use pre-written bullets from SELECTED_PROJECTS as base. Weave in JD keywords naturally.
+7. Experience: EXACTLY 3 bullets verbatim from CANDIDATE_EXPERIENCE.
+8. Strengths: pick EXACTLY 4 from STRENGTHS_POOL by key ID. Return the text values.
+9. Skills: reorder items within each category putting JD-relevant ones first. Do NOT add new items.
 
 TARGET ROLE: {role} at {company}
-ROLE TYPE: {stage1.get('role_type', role_type)}
-JD KEYWORDS TO INCLUDE: {', '.join(stage1.get('keywords', []))}
+JD KEYWORDS TO WEAVE IN: {', '.join(stage1.get('keywords', []))}
 REQUIRED SKILLS: {', '.join(stage1.get('required', []))}
-KEY RESPONSIBILITIES: {'; '.join(stage1.get('responsibilities', []))}
 
-AVAILABLE_SKILLS (use ONLY these, reorder within categories as needed):
+AVAILABLE_SKILLS:
 {json.dumps(skills_to_send, indent=2)}
 
 CANDIDATE_EXPERIENCE:
 {json.dumps(profile.get('experience', []), indent=2)}
 
-SELECTED_PROJECTS (use these 3, bullets are pre-written — reuse and enhance with JD keywords):
+SELECTED_PROJECTS:
 {json.dumps(selected, indent=2)}
 
-STRENGTHS_POOL (pick 4 most relevant to this JD):
+STRENGTHS_POOL:
 {json.dumps(profile.get('strengths_pool', {}), indent=2)}
 
-OUTPUT JSON SCHEMA:
+OUTPUT THIS EXACT JSON STRUCTURE:
 {{
-  "summary": "2-sentence engineer-profile summary with JD keywords woven in",
+  "summary": "Sentence 1. Sentence 2.",
   "skills": {{
-    "Category Name": ["skill1", "skill2"],
-    ...
+    "Languages": ["item1", "item2"],
+    "Backend": ["item1", "item2"],
+    "Databases": ["item1"],
+    "Tools": ["item1", "item2"],
+    "Concepts": ["item1", "item2"]
   }},
   "experience": [
     {{
-      "role": "exact role title",
-      "company": "company name",
-      "location": "city",
-      "period": "Month YYYY -- Ongoing",
-      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": ["bullet1", "bullet2", "bullet3"]
     }}
   ],
   "projects": [
     {{
-      "name": "Project Name",
-      "subtitle": "Project Subtitle",
-      "tech": "Tech1, Tech2, Tech3",
-      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+      "name": "project name",
+      "subtitle": "project subtitle",
+      "tech": "tech stack string",
+      "bullets": ["bullet1", "bullet2", "bullet3"]
     }}
   ],
-  "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"]
+  "strengths": ["full strength text 1", "full strength text 2", "full strength text 3", "full strength text 4"]
 }}"""
 
-        resp2 = requests.post(url, headers=headers, json={
+        resp2_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
             "contents": [{"parts": [{"text": stage2_prompt}]}],
-            "generationConfig": {"maxOutputTokens": 3000}
-        })
-        if resp2.status_code != 200:
-            raise Exception(f"Stage 2 API error ({resp2.status_code}): {resp2.text[:300]}")
+            "generationConfig": {"maxOutputTokens": 3500, "temperature": 0.3}
+        }, stage="Stage 2")
 
-        raw2 = resp2.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+        raw2 = resp2_json['candidates'][0]['content']['parts'][0]['text'].strip()
         raw2 = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw2).strip()
 
         try:
@@ -534,7 +655,7 @@ OUTPUT JSON SCHEMA:
             ats_data = {"score": round(len(hits)/len(all_kws)*100) if all_kws else 100,
                         "hits": hits, "misses": misses, "total": len(all_kws)}
 
-        return jsonify({
+        result_payload = {
             "success":       True,
             "slug":          slug,
             "resume_json":   resume_json,
@@ -544,15 +665,35 @@ OUTPUT JSON SCHEMA:
             "pdf_available": pdf_available,
             "pdf_error":     pdf_error,
             "projects_used": [p.get('name') for p in selected]
-        })
+        }
+        _RESUME_CACHE[cache_key] = result_payload
+        print(f"[Cache] Stored result for key {cache_key}", flush=True)
+        return jsonify(result_payload)
 
     except Exception as e:
-        err = str(e).lower()
-        if 'api_key' in err or 'authentication' in err or '400' in err:
-            return jsonify({"error": "Invalid API key"}), 401
-        elif 'quota' in err or 'rate' in err or '429' in err:
-            return jsonify({"error": f"Rate limit — wait 60s and retry: {str(e)}"}), 429
-        return jsonify({"error": str(e)}), 500
+        err_str = str(e)
+        err_low = err_str.lower()
+        print(f"\n!!! GENERATE ERROR (real message): {err_str}\n", flush=True)
+        if '400' in err_str and 'api key' in err_low:
+            return jsonify({"error": "Invalid Gemini API key. Get one at aistudio.google.com"}), 401
+        if '403' in err_str:
+            return jsonify({"error": "API key lacks Gemini access. Enable at aistudio.google.com"}), 403
+        if '429' in err_str or 'quota exhausted' in err_low or 'too many requests' in err_low:
+            # Distinguish per-minute vs daily exhaustion for better UX
+            if 'exhausted for today' in err_low or 'midnight' in err_low or 'no working model' in err_low:
+                return jsonify({"error": (
+                    "Daily quota exhausted for this project — a new API key in the SAME project won't help. "
+                    "Fix: go to aistudio.google.com → create a NEW project → generate a key from it. "
+                    "Or wait until midnight PT (~12:30 PM IST tomorrow)."
+                )}), 429
+            return jsonify({"error": "Rate limit hit (per-minute) — wait 60 seconds and try again"}), 429
+        if 'rate limit' in err_low or 'ratelimit' in err_low:
+            return jsonify({"error": "Rate limit hit — wait 60 seconds and try again"}), 429
+        if 'invalid api key' in err_low or 'api_key' in err_low:
+            return jsonify({"error": "Invalid Gemini API key — check it starts with AIza"}), 401
+        if 'stage 1 api error' in err_low or 'stage 2 api error' in err_low:
+            return jsonify({"error": f"Gemini API call failed: {err_str}"}), 500
+        return jsonify({"error": err_str}), 500
 
 
 if __name__ == '__main__':

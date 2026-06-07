@@ -15,14 +15,14 @@ const UI = {
     statusDot: document.getElementById('status-dot'),
     statusText: document.getElementById('status-text'),
     healthBadge: document.getElementById('health-badge'),
-    
+
     // Loading
     ps1: document.getElementById('ps-1'),
     ps2: document.getElementById('ps-2'),
     ps3: document.getElementById('ps-3'),
     ps4: document.getElementById('ps-4'),
     loadMsg: document.getElementById('loading-msg'),
-    
+
     // Result
     atsScore: document.getElementById('ats-score'),
     atsBar: document.getElementById('ats-bar'),
@@ -37,7 +37,7 @@ const UI = {
     btnTex: document.getElementById('btn-tex'),
     btnPdf: document.getElementById('btn-pdf'),
     btnCopy: document.getElementById('btn-copy'),
-    
+
     // Error
     errorTitle: document.getElementById('error-title'),
     errorMsg: document.getElementById('error-msg')
@@ -97,7 +97,7 @@ UI.btnCopy.addEventListener('click', () => {
 
 UI.form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const payload = {
         api_key: UI.fKey.value.trim(),
         company: document.getElementById('f-company').value.trim(),
@@ -106,54 +106,54 @@ UI.form.addEventListener('submit', async (e) => {
         jd: UI.jdInput.value.trim(),
         relocation: UI.fRelocation ? UI.fRelocation.value.trim() : ''
     };
-    
+
     UI.btnGen.disabled = true;
     UI.statusDot.className = 'status-dot active';
     UI.statusText.textContent = 'Running pipeline...';
     showState('loading');
-    
+
     updatePipe(1, 'active');
     updatePipe(2, 'idle'); updatePipe(3, 'idle'); updatePipe(4, 'idle');
     UI.loadMsg.textContent = 'Extracting keywords from Job Description...';
-    
+
     const t1 = setTimeout(() => {
         updatePipe(1, 'done');
         updatePipe(2, 'active');
         UI.loadMsg.textContent = 'Assembling resume (this takes 10-15s)...';
     }, 2500);
-    
+
     try {
         const resp = await fetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         clearTimeout(t1);
         const data = await resp.json();
-        
+
         if (!resp.ok || !data.success) {
             throw new Error(data.error || "Generation failed");
         }
-        
+
         updatePipe(2, 'done');
         updatePipe(3, 'active');
         UI.loadMsg.textContent = 'Scoring ATS keywords...';
-        
+
         setTimeout(() => {
             updatePipe(3, 'done');
             updatePipe(4, 'active');
             UI.loadMsg.textContent = 'Generating files...';
-            
+
             setTimeout(() => {
                 renderResult(data);
                 showState('result');
                 UI.statusDot.className = 'status-dot done';
-                UI.statusText.textContent = 'Complete';
+                UI.statusText.textContent = data.from_cache ? '⚡ Cache hit' : 'Complete';
                 UI.btnGen.disabled = false;
             }, 400);
         }, 300);
-        
+
     } catch (err) {
         clearTimeout(t1);
         UI.errorMsg.textContent = err.message;
@@ -165,9 +165,66 @@ UI.form.addEventListener('submit', async (e) => {
 });
 
 function renderResult(data) {
-    rawResumeText = JSON.stringify(data.resume_json, null, 2);
-    
-    const ats = data.ats || {score: 0, hits: [], misses: [], total: 0};
+    // Cache notice banner
+    if (data.from_cache) {
+        const existingNotice = document.getElementById('cache-notice');
+        if (!existingNotice) {
+            const notice = document.createElement('div');
+            notice.id = 'cache-notice';
+            notice.className = 'notice amber';
+            notice.textContent = '⚡ Returned from cache — no API calls used. Change the JD to regenerate fresh.';
+            const resultContainer = document.getElementById('state-result');
+            const resultHeader = resultContainer.querySelector('.result-header');
+            resultHeader.insertAdjacentElement('afterend', notice);
+        }
+    } else {
+        const existingNotice = document.getElementById('cache-notice');
+        if (existingNotice) existingNotice.remove();
+    }
+
+    // Build readable plain text for Copy button
+    const rj_plain = data.resume_json;
+    const text_lines = [];
+    if (rj_plain.summary) {
+        text_lines.push('PROFESSIONAL SUMMARY');
+        text_lines.push('-'.repeat(50));
+        text_lines.push(rj_plain.summary);
+        text_lines.push('');
+    }
+    if (rj_plain.skills) {
+        text_lines.push('TECHNICAL SKILLS');
+        text_lines.push('-'.repeat(50));
+        for (const [cat, items] of Object.entries(rj_plain.skills)) {
+            text_lines.push(`${cat}: ${Array.isArray(items) ? items.join(', ') : items}`);
+        }
+        text_lines.push('');
+    }
+    if (rj_plain.experience && rj_plain.experience.length > 0) {
+        text_lines.push('PROFESSIONAL EXPERIENCE');
+        text_lines.push('-'.repeat(50));
+        for (const exp of rj_plain.experience) {
+            text_lines.push(`${exp.role} | ${exp.company} | ${exp.period}`);
+            (exp.bullets || []).forEach(b => text_lines.push(`  • ${b}`));
+            text_lines.push('');
+        }
+    }
+    if (rj_plain.projects && rj_plain.projects.length > 0) {
+        text_lines.push('ACADEMIC PROJECTS');
+        text_lines.push('-'.repeat(50));
+        for (const proj of rj_plain.projects) {
+            text_lines.push(`${proj.name} — ${proj.subtitle} | ${proj.tech}`);
+            (proj.bullets || []).forEach(b => text_lines.push(`  • ${b}`));
+            text_lines.push('');
+        }
+    }
+    if (rj_plain.strengths && rj_plain.strengths.length > 0) {
+        text_lines.push('TECHNICAL STRENGTHS');
+        text_lines.push('-'.repeat(50));
+        rj_plain.strengths.forEach(s => text_lines.push(`  • ${s}`));
+    }
+    rawResumeText = text_lines.join('\n');
+
+    const ats = data.ats || { score: 0, hits: [], misses: [], total: 0 };
     UI.atsScore.textContent = ats.score;
     let color = 'var(--red)';
     if (ats.score >= 90) color = 'var(--green)';
@@ -175,12 +232,12 @@ function renderResult(data) {
     UI.atsScore.style.color = color;
     UI.atsBar.style.width = `${ats.score}%`;
     UI.atsBar.style.backgroundColor = color;
-    
+
     UI.metaRole.textContent = data.stage1?.role_type || 'Unknown';
     UI.metaSeniority.textContent = data.stage1?.seniority || 'Unknown';
     UI.metaKwCount.textContent = `${(ats.hits || []).length}/${ats.total || 0} keywords hit`;
     UI.metaProjects.textContent = `Projects: ${(data.projects_used || []).join(', ')}`;
-    
+
     UI.kwContainer.innerHTML = '';
     (ats.hits || []).forEach(kw => {
         const el = document.createElement('div');
@@ -194,7 +251,7 @@ function renderResult(data) {
         el.textContent = kw;
         UI.kwContainer.appendChild(el);
     });
-    
+
     const rj = data.resume_json;
     UI.resumeOutput.innerHTML = '';
 
@@ -255,10 +312,10 @@ function renderResult(data) {
         const strHTML = `<ul style="margin: 0; padding-left: 20px;">${rj.strengths.map(s => `<li>${s}</li>`).join('')}</ul>`;
         addSection('TECHNICAL STRENGTHS', strHTML);
     }
-    
+
     UI.btnTxt.href = `/api/download/${data.slug}/json`;
     UI.btnTex.href = `/api/download/${data.slug}/tex`;
-    
+
     if (data.pdf_available) {
         UI.btnPdf.href = `/api/download/${data.slug}/pdf`;
         UI.btnPdf.style.display = 'inline-block';
