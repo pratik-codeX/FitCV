@@ -641,19 +641,72 @@ OUTPUT THIS EXACT JSON STRUCTURE:
                     pdf_error = str(e)
                     break
 
-            # FIX 5: ATS score from actual PDF text, not LLM text
+            # ATS: score by category (Required 60%, Preferred 25%, General 15%)
             if pdf_available:
-                all_kws = list(set(stage1.get('keywords', []) + stage1.get('required', [])))
-                ats_data = score_ats_from_pdf(pdf_path, all_kws)
+                required_kws  = list(dict.fromkeys(stage1.get('required', [])))
+                preferred_kws = [k for k in stage1.get('preferred', []) if k not in required_kws]
+                general_kws   = [k for k in stage1.get('keywords', [])
+                                 if k not in required_kws and k not in preferred_kws]
+
+                def _score(path, kws):
+                    if not kws:
+                        return {"score": 100, "hits": [], "misses": [], "total": 0}
+                    return score_ats_from_pdf(path, kws)
+
+                req_ats  = _score(pdf_path, required_kws)
+                pref_ats = _score(pdf_path, preferred_kws)
+                gen_ats  = _score(pdf_path, general_kws)
+
+                # Weighted score
+                w_score = round(
+                    req_ats["score"]  * 0.60 +
+                    pref_ats["score"] * 0.25 +
+                    gen_ats["score"]  * 0.15
+                )
+                all_hits   = req_ats["hits"]   + pref_ats["hits"]   + gen_ats["hits"]
+                all_misses = req_ats["misses"] + pref_ats["misses"] + gen_ats["misses"]
+                ats_data = {
+                    "score":  w_score,
+                    "hits":   all_hits,
+                    "misses": all_misses,
+                    "total":  len(all_hits) + len(all_misses),
+                    "breakdown": {
+                        "required":  req_ats,
+                        "preferred": pref_ats,
+                        "general":   gen_ats
+                    }
+                }
         else:
             pdf_error = "pdflatex not found — run: sudo apt install texlive-latex-extra -y"
-            # Fallback ATS scoring from resume_json text
             combined_text = json.dumps(resume_json).lower()
-            all_kws = list(set(stage1.get('keywords', []) + stage1.get('required', [])))
-            hits   = [kw for kw in all_kws if kw.lower() in combined_text]
-            misses = [kw for kw in all_kws if kw.lower() not in combined_text]
-            ats_data = {"score": round(len(hits)/len(all_kws)*100) if all_kws else 100,
-                        "hits": hits, "misses": misses, "total": len(all_kws)}
+            required_kws  = list(dict.fromkeys(stage1.get('required', [])))
+            preferred_kws = [k for k in stage1.get('preferred', []) if k not in required_kws]
+            general_kws   = [k for k in stage1.get('keywords', [])
+                             if k not in required_kws and k not in preferred_kws]
+
+            def _score_text(kws):
+                if not kws:
+                    return {"score": 100, "hits": [], "misses": [], "total": 0}
+                hits_   = [k for k in kws if k.lower() in combined_text]
+                misses_ = [k for k in kws if k.lower() not in combined_text]
+                return {"score": round(len(hits_)/len(kws)*100),
+                        "hits": hits_, "misses": misses_, "total": len(kws)}
+
+            req_ats  = _score_text(required_kws)
+            pref_ats = _score_text(preferred_kws)
+            gen_ats  = _score_text(general_kws)
+            w_score  = round(req_ats["score"]*0.60 + pref_ats["score"]*0.25 + gen_ats["score"]*0.15)
+            ats_data = {
+                "score":  w_score,
+                "hits":   req_ats["hits"]   + pref_ats["hits"]   + gen_ats["hits"],
+                "misses": req_ats["misses"] + pref_ats["misses"] + gen_ats["misses"],
+                "total":  len(required_kws) + len(preferred_kws) + len(general_kws),
+                "breakdown": {
+                    "required":  req_ats,
+                    "preferred": pref_ats,
+                    "general":   gen_ats
+                }
+            }
 
         result_payload = {
             "success":       True,
@@ -693,6 +746,96 @@ OUTPUT THIS EXACT JSON STRUCTURE:
             return jsonify({"error": "Invalid Gemini API key — check it starts with AIza"}), 401
         if 'stage 1 api error' in err_low or 'stage 2 api error' in err_low:
             return jsonify({"error": f"Gemini API call failed: {err_str}"}), 500
+        return jsonify({"error": err_str}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 3: IMPROVEMENT ANALYSIS
+# ─────────────────────────────────────────────────────────────────────────────
+@app.route('/api/improve', methods=['POST'])
+def improve():
+    data       = request.json
+    api_key    = data.get('api_key')
+    jd         = data.get('jd', '')
+    resume_json = data.get('resume_json', {})
+    stage1     = data.get('stage1', {})
+    ats        = data.get('ats', {})
+
+    if not api_key:
+        return jsonify({"error": "API key required"}), 401
+
+    breakdown  = ats.get('breakdown', {})
+    miss_req   = breakdown.get('required',  {}).get('misses', ats.get('misses', []))
+    miss_pref  = breakdown.get('preferred', {}).get('misses', [])
+    hit_req    = breakdown.get('required',  {}).get('hits',   [])
+    current_score = ats.get('score', 0)
+
+    improve_prompt = f"""You are an expert ATS resume coach.
+Analyze the resume below against this job description and provide SPECIFIC, ACTIONABLE improvements.
+
+Current ATS Score: {current_score}%
+Missing REQUIRED keywords (critical — fix these first): {miss_req}
+Missing PREFERRED keywords: {miss_pref}
+Already matching required keywords: {hit_req}
+
+Job Description (first 2000 chars):
+{jd[:2000]}
+
+Current Resume JSON:
+{json.dumps(resume_json, indent=2)[:3000]}
+
+Return ONLY valid JSON in exactly this schema, no markdown:
+{{
+  "estimated_score_after": <integer 0-100, realistic estimate if all fixes applied>,
+  "priority_fixes": [
+    {{
+      "section": "summary|skills|experience|projects",
+      "issue": "one sentence describing the specific gap",
+      "fix": "exact rewrite or addition — copy-paste ready"
+    }}
+  ],
+  "skills_to_add": ["skill1", "skill2"],
+  "bullets_to_rewrite": [
+    {{
+      "original": "existing bullet text (shortened)",
+      "improved": "rewritten bullet that naturally includes missing keyword"
+    }}
+  ],
+  "summary_note": "one sentence overall assessment"
+}}
+
+Focus on: (1) Required keywords not in resume — highest priority. (2) Natural keyword integration, not keyword stuffing. (3) Maximum 5 priority_fixes, 3 bullets_to_rewrite."""
+
+    try:
+        GEMINI_MODELS_PRIORITY = [
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.5-flash-preview-05-20',
+            'gemini-2.0-flash',
+        ]
+        headers = {'Content-Type': 'application/json'}
+        resp_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
+            "contents": [{"parts": [{"text": improve_prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": 2000, 
+                "temperature": 0.2,
+                "responseMimeType": "application/json"
+            }
+        }, stage="Improve")
+
+        raw = resp_json['candidates'][0]['content']['parts'][0]['text'].strip()
+        raw = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw).strip()
+        
+        try:
+            result = json.loads(raw)
+            return jsonify({"success": True, "improvement": result})
+        except json.JSONDecodeError as e:
+            print(f"\n[Improvement API] LLM returned invalid JSON:\n{raw}\n", flush=True)
+            return jsonify({"error": f"LLM returned invalid JSON: {e}"}), 500
+    except Exception as e:
+        err_str = str(e)
+        err_low = err_str.lower()
+        if '429_RATE_LIMITED' in err_str or 'quota exhausted' in err_low:
+            return jsonify({"error": "Rate limit — wait 60s and try again"}), 429
         return jsonify({"error": err_str}), 500
 
 

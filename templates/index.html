@@ -151,6 +151,9 @@
                         <a id="btn-txt" class="btn-secondary" href="#" target="_blank">TXT</a>
                         <a id="btn-tex" class="btn-secondary" href="#" target="_blank">LaTeX</a>
                         <a id="btn-pdf" class="btn-secondary" href="#" target="_blank">PDF</a>
+                        <button class="btn-improve" id="btn-improve">
+                            ✨ Improve Resume
+                        </button>
                     </div>
                 </div>
 
@@ -174,10 +177,29 @@
                         <span class="meta-chip" id="meta-projects"></span>
                     </div>
                     <div class="kw-container" id="kw-container"></div>
+                    <!-- ATS breakdown by category -->
+                    <div class="ats-breakdown" id="ats-breakdown" style="display:none">
+                        <div class="breakdown-row" id="bd-required"></div>
+                        <div class="breakdown-row" id="bd-preferred"></div>
+                        <div class="breakdown-row" id="bd-general"></div>
+                    </div>
                 </div>
 
                 <div class="resume-output" id="resume-output">
                     <!-- resume blocks injected by JS -->
+                </div>
+
+                <!-- IMPROVEMENT PANEL (hidden until btn-improve clicked) -->
+                <div id="improve-panel" style="display:none">
+                    <div class="improve-header">
+                        <div class="improve-title">✨ ATS Improvement Analysis</div>
+                        <div class="improve-score" id="improve-score"></div>
+                    </div>
+                    <div id="improve-loading" class="improve-loading" style="display:none">
+                        <div class="loader" style="margin:0 auto 12px;"></div>
+                        <div>Analysing gaps with Gemini...</div>
+                    </div>
+                    <div id="improve-content"></div>
                 </div>
             </div>
 

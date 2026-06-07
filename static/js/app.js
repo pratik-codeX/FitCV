@@ -31,12 +31,18 @@ const UI = {
     metaKwCount: document.getElementById('meta-kw-count'),
     metaProjects: document.getElementById('meta-projects'),
     kwContainer: document.getElementById('kw-container'),
+    atsBreakdown: document.getElementById('ats-breakdown'),
     resumeOutput: document.getElementById('resume-output'),
     pdfNotice: document.getElementById('pdf-notice'),
     btnTxt: document.getElementById('btn-txt'),
     btnTex: document.getElementById('btn-tex'),
     btnPdf: document.getElementById('btn-pdf'),
     btnCopy: document.getElementById('btn-copy'),
+    btnImprove: document.getElementById('btn-improve'),
+    improvePanel: document.getElementById('improve-panel'),
+    improveLoading: document.getElementById('improve-loading'),
+    improveContent: document.getElementById('improve-content'),
+    improveScore: document.getElementById('improve-score'),
 
     // Error
     errorTitle: document.getElementById('error-title'),
@@ -44,6 +50,7 @@ const UI = {
 };
 
 let rawResumeText = "";
+let _lastData = null;  // stored so improve button can send full context
 
 function showState(name) {
     Object.values(UI.states).forEach(el => el.classList.remove('active'));
@@ -252,6 +259,26 @@ function renderResult(data) {
         UI.kwContainer.appendChild(el);
     });
 
+    // ATS breakdown by category
+    const bd = ats.breakdown;
+    if (bd) {
+        UI.atsBreakdown.style.display = 'block';
+        function renderBDRow(elId, label, cat) {
+            const c = bd[cat] || {};
+            const s = c.score ?? 100;
+            const col = s >= 80 ? 'var(--green)' : s >= 55 ? 'var(--amber)' : 'var(--red)';
+            const hits = (c.hits || []).length, total = (c.hits || []).length + (c.misses || []).length;
+            document.getElementById(elId).innerHTML = `
+                <span class="bd-label">${label}</span>
+                <div class="bd-bar-bg"><div class="bd-bar-fill" style="width:${s}%;background:${col}"></div></div>
+                <span class="bd-pct" style="color:${col}">${s}%</span>
+                <span class="bd-count">${hits}/${total}</span>`;
+        }
+        renderBDRow('bd-required',  'Required',  'required');
+        renderBDRow('bd-preferred', 'Preferred', 'preferred');
+        renderBDRow('bd-general',   'General',   'general');
+    }
+
     const rj = data.resume_json;
     UI.resumeOutput.innerHTML = '';
 
@@ -325,4 +352,105 @@ function renderResult(data) {
         UI.pdfNotice.style.display = 'block';
         UI.pdfNotice.textContent = data.pdf_error || 'PDF unavailable — download LaTeX and compile with: pdflatex resume.tex';
     }
+
+    // Reset improve panel for fresh result
+    UI.improvePanel.style.display = 'none';
+    UI.improveContent.innerHTML = '';
+    UI.improveScore.textContent = '';
+    _lastData = data;
+}
+
+// ── Improve button ────────────────────────────────────────────────────────────
+UI.btnImprove.addEventListener('click', async () => {
+    if (!_lastData) return;
+
+    UI.improvePanel.style.display = 'block';
+    UI.improveLoading.style.display = 'block';
+    UI.improveContent.innerHTML = '';
+    UI.improveScore.textContent = '';
+    UI.btnImprove.disabled = true;
+    UI.improvePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const payload = {
+        api_key:     UI.fKey.value.trim(),
+        jd:          UI.jdInput.value.trim(),
+        resume_json: _lastData.resume_json,
+        stage1:      _lastData.stage1,
+        ats:         _lastData.ats
+    };
+
+    try {
+        const resp = await fetch('/api/improve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        UI.improveLoading.style.display = 'none';
+        UI.btnImprove.disabled = false;
+
+        if (!resp.ok || !data.success) {
+            UI.improveContent.innerHTML = `<div class="improve-error">⚠️ ${data.error}</div>`;
+            return;
+        }
+        renderImprovement(data.improvement, _lastData.ats.score);
+    } catch (err) {
+        UI.improveLoading.style.display = 'none';
+        UI.btnImprove.disabled = false;
+        UI.improveContent.innerHTML = `<div class="improve-error">⚠️ ${err.message}</div>`;
+    }
+});
+
+function renderImprovement(imp, currentScore) {
+    const after = imp.estimated_score_after || 0;
+    const delta = after - currentScore;
+    const deltaStr = delta >= 0 ? `+${delta}` : `${delta}`;
+    const deltaCol = delta >= 0 ? 'var(--green)' : 'var(--red)';
+
+    UI.improveScore.innerHTML =
+        `<span style="color:var(--text2)">Current: <strong>${currentScore}%</strong></span>
+         <span style="margin:0 8px;color:var(--text3)">→</span>
+         <span style="color:var(--green)">Estimated after fixes: <strong>${after}%</strong></span>
+         <span style="margin-left:8px;color:${deltaCol};font-weight:700">(${deltaStr})</span>`;
+
+    let html = '';
+
+    // Summary note
+    if (imp.summary_note) {
+        html += `<div class="improve-note">${imp.summary_note}</div>`;
+    }
+
+    // Priority fixes
+    if (imp.priority_fixes && imp.priority_fixes.length) {
+        html += `<div class="improve-section-title">🔧 Priority Fixes</div>`;
+        imp.priority_fixes.forEach((f, i) => {
+            html += `
+            <div class="improve-fix">
+                <div class="fix-badge">${f.section.toUpperCase()}</div>
+                <div class="fix-issue">${f.issue}</div>
+                <div class="fix-suggestion">${f.fix}</div>
+            </div>`;
+        });
+    }
+
+    // Bullets to rewrite
+    if (imp.bullets_to_rewrite && imp.bullets_to_rewrite.length) {
+        html += `<div class="improve-section-title">✏️ Bullet Rewrites</div>`;
+        imp.bullets_to_rewrite.forEach(b => {
+            html += `
+            <div class="improve-bullet">
+                <div class="bullet-old">✖ ${b.original}</div>
+                <div class="bullet-new">✔ ${b.improved}</div>
+            </div>`;
+        });
+    }
+
+    // Skills to add
+    if (imp.skills_to_add && imp.skills_to_add.length) {
+        html += `<div class="improve-section-title">📦 Skills to Add</div>`;
+        html += `<div class="improve-skills">${imp.skills_to_add.map(s =>
+            `<span class="kw-pill miss">${s}</span>`).join('')}</div>`;
+    }
+
+    UI.improveContent.innerHTML = html;
 }
