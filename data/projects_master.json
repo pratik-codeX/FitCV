@@ -208,6 +208,79 @@
         "Designed modular Angular component architecture for scalable event categorization and search functionality.",
         "Implemented event registration workflows with Express.js APIs and MongoDB document persistence."
       ]
+    },
+    {
+      "id": "chat-messenger",
+      "name": "Chat Messenger with Log Facility",
+      "subtitle": "Peer-to-Peer Real-Time Messaging Application",
+      "tech_display": "Java, Multithreading, Socket Programming",
+      "tags": [
+        "java",
+        "networking",
+        "socket",
+        "multithreading",
+        "concurrency"
+      ],
+      "priority": 2,
+      "bullets": [
+        "Developed peer-to-peer messaging system using Java sockets enabling real-time communication between clients.",
+        "Implemented concurrent message handling using multithreading for uninterrupted bidirectional communication.",
+        "Designed persistent chat logging mechanism for message auditing and session tracking."
+      ]
+    },
+    {
+      "id": "study-tracker",
+      "name": "Study Tracker",
+      "subtitle": "Student Productivity Monitoring System",
+      "tech_display": "Java, OOP, File Handling",
+      "tags": [
+        "java",
+        "oop",
+        "file-handling",
+        "desktop"
+      ],
+      "priority": 2,
+      "bullets": [
+        "Designed study activity tracking application enabling students to record and analyze learning sessions.",
+        "Implemented file-based persistence layer for maintaining historical study records.",
+        "Generated performance summaries and progress reports through modular object-oriented architecture."
+      ]
+    },
+    {
+      "id": "secure-file-transfer",
+      "name": "Secure File Transfer Simulation",
+      "subtitle": "Encrypted File Exchange System",
+      "tech_display": "C, Cryptography Concepts, File Handling",
+      "tags": [
+        "c",
+        "security",
+        "encryption",
+        "file-system"
+      ],
+      "priority": 2,
+      "bullets": [
+        "Implemented encrypted file transfer workflow using custom encoding techniques for secure data exchange.",
+        "Developed file validation and integrity verification mechanisms during transfer operations.",
+        "Applied secure file handling practices for controlled storage and retrieval."
+      ]
+    },
+    {
+      "id": "file-packer",
+      "name": "File Packer Unpacker",
+      "subtitle": "Custom Archive Management Utility",
+      "tech_display": "C++, File System, Data Structures",
+      "tags": [
+        "cpp",
+        "file-system",
+        "compression",
+        "systems"
+      ],
+      "priority": 2,
+      "bullets": [
+        "Built archive utility capable of combining multiple files into a single packed container.",
+        "Implemented metadata management for file extraction and restoration.",
+        "Designed efficient file processing workflows reducing manual file management overhead."
+      ]
     }
   ]
 }

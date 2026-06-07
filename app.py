@@ -93,7 +93,7 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
         uni    = esc(edu.get('university', edu.get('institution', '')))
         year_str = f"{year} $|$ {esc(status)}" if status else year
         edu_latex_lines.append(
-            f"\\textbf{{{degree}}} \\hfill \\textit{{{year_str}}}\\\\\n{uni} \\hfill {score}\n\\vspace{{2pt}}"
+            f"\\textbf{{{degree}}} \\hfill \\textit{{{year_str}}}\\\\\n{uni} \\hfill {score}\\\\[4pt]"
         )
 
     # ── LaTeX Preamble ────────────────────────────────────────────────────────
@@ -495,34 +495,40 @@ JD:
                 "Backend":    skills_pool.get('backend', []),
                 "Databases":  skills_pool.get('databases', []),
                 "Tools":      skills_pool.get('tools_java', skills_pool.get('tools_general', [])),
-                "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_backend', [])
+                "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_backend', []),
+                "Exposure":   skills_pool.get('exposure', [])
             }
-            if stage1.get('ai_ml_cloud_mentioned'):
-                skills_to_send["Exposure"] = skills_pool.get('exposure', [])
 
         # ── STAGE 2: Resume Assembly → structured JSON output ─────────────────
         time.sleep(2)
 
-        # FIX 2: LLM outputs structured JSON, not plain text
+        # STAGE 2: Resume assembly — structured JSON output
+        # ALL JD keywords must appear in final resume for 100% ATS score
+        all_jd_keywords = list(set(stage1.get('keywords', []) + stage1.get('required', [])))
+        missing_kw_hint = ', '.join(all_jd_keywords)
+
         stage2_prompt = f"""You are an expert resume writer. Output ONLY valid JSON, no markdown, no explanation.
 
-CRITICAL RULES (violations = unusable resume):
-1. Output ONLY the JSON object below. Nothing before or after it.
-2. DO NOT include name, email, phone, links, or location anywhere — header is auto-injected.
-3. DO NOT include education anywhere — it is auto-injected from data.
-4. Use ONLY skills listed in AVAILABLE_SKILLS. Zero additions. Zero fabrication.
-5. Summary: EXACTLY 2 sentences. Follow this format strictly:
-   Sentence 1: "[Degree] candidate with strong foundation in [keyword1], [keyword2], and [keyword3] — [what they do]."
-   Sentence 2: "Hands-on experience [specific project achievement] using [tech stack] in [context]."
-   FORBIDDEN openers: "Highly", "Results-driven", "Passionate", "Motivated", "Eager", "Innovative", "Dynamic"
-6. Each project: EXACTLY 3 bullets. Use pre-written bullets from SELECTED_PROJECTS as base. Weave in JD keywords naturally.
-7. Experience: EXACTLY 3 bullets verbatim from CANDIDATE_EXPERIENCE.
-8. Strengths: pick EXACTLY 4 from STRENGTHS_POOL by key ID. Return the text values.
-9. Skills: reorder items within each category putting JD-relevant ones first. Do NOT add new items.
+CRITICAL RULES:
+1. Output ONLY the JSON object. Nothing before or after it.
+2. DO NOT include name, email, phone, links, or location — header is auto-injected.
+3. DO NOT include education — it is auto-injected from data.
+4. Use ONLY skills in AVAILABLE_SKILLS. No additions. No fabrication.
+5. Summary: EXACTLY 2 sentences. Format:
+   S1: "MCA candidate with strong foundation in [jd_kw1], [jd_kw2], and [jd_kw3] — [role-specific capability]."
+   S2: "Hands-on experience [achievement] using [tech] in [context] with focus on [jd_kw4] and [jd_kw5]."
+   FORBIDDEN openers: Highly, Results-driven, Passionate, Motivated, Eager, Innovative, Dynamic, Dedicated
+6. Projects: EXACTLY 3 bullets each. Weave JD keywords naturally — do NOT list keywords alone.
+7. Experience bullets: copy VERBATIM from CANDIDATE_EXPERIENCE — do not rewrite.
+8. Strengths: pick EXACTLY 4 from STRENGTHS_POOL. Return full text values.
+9. Skills: reorder items within each provided category (JD-relevant first). Do NOT add items.
+10. KEYWORD COVERAGE RULE: Every keyword in JD_KEYWORDS_TO_COVER must appear somewhere
+    in the resume — summary, skills, or project bullets. Check before outputting.
+    If a keyword is not naturally in any section, add it to the Concepts or Exposure skill category.
 
 TARGET ROLE: {role} at {company}
-JD KEYWORDS TO WEAVE IN: {', '.join(stage1.get('keywords', []))}
-REQUIRED SKILLS: {', '.join(stage1.get('required', []))}
+JD_KEYWORDS_TO_COVER (ALL must appear in final resume): {missing_kw_hint}
+REQUIRED: {', '.join(stage1.get('required', []))}
 
 AVAILABLE_SKILLS:
 {json.dumps(skills_to_send, indent=2)}
@@ -540,11 +546,12 @@ OUTPUT THIS EXACT JSON STRUCTURE:
 {{
   "summary": "Sentence 1. Sentence 2.",
   "skills": {{
-    "Languages": ["item1", "item2"],
-    "Backend": ["item1", "item2"],
+    "Languages": ["item1"],
+    "Backend": ["item1"],
     "Databases": ["item1"],
-    "Tools": ["item1", "item2"],
-    "Concepts": ["item1", "item2"]
+    "Tools": ["item1"],
+    "Concepts": ["item1"],
+    "Exposure": ["item1"]
   }},
   "experience": [
     {{
@@ -552,18 +559,18 @@ OUTPUT THIS EXACT JSON STRUCTURE:
       "company": "SetTribe IT Solutions",
       "location": "Pune",
       "period": "Feb 2026 -- Ongoing",
-      "bullets": ["bullet1", "bullet2", "bullet3"]
+      "bullets": ["verbatim bullet 1", "verbatim bullet 2", "verbatim bullet 3"]
     }}
   ],
   "projects": [
     {{
-      "name": "project name",
-      "subtitle": "project subtitle",
-      "tech": "tech stack string",
-      "bullets": ["bullet1", "bullet2", "bullet3"]
+      "name": "name",
+      "subtitle": "subtitle",
+      "tech": "tech string",
+      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
     }}
   ],
-  "strengths": ["full strength text 1", "full strength text 2", "full strength text 3", "full strength text 4"]
+  "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"]
 }}"""
 
         resp2_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
@@ -816,7 +823,7 @@ Focus on: (1) Required keywords not in resume — highest priority. (2) Natural 
         resp_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
             "contents": [{"parts": [{"text": improve_prompt}]}],
             "generationConfig": {
-                "maxOutputTokens": 2000, 
+                "maxOutputTokens": 3500, 
                 "temperature": 0.2,
                 "responseMimeType": "application/json"
             }

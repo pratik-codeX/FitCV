@@ -13,7 +13,7 @@
       "university": "Dnyansagar Institute of Management and Research, Pune (SPPU)",
       "year": "2026",
       "status": "Pursuing",
-      "score": "7.24 SGPA"
+      "score": "8.25 CGPA | Sem VII: 7.24 SGPA"
     },
     {
       "degree": "Bachelor of Computer Applications (BCA)",
@@ -37,9 +37,9 @@
       "location": "Pune",
       "period": "Feb 2026 -- Ongoing",
       "bullets": [
-        "Developed ERP application modules using Java and Spring Boot, implementing RESTful API contracts for scalable service architecture.",
-        "Operated in Agile sprint workflow using Git for version control, code reviews, sprint planning, and technical documentation.",
-        "Designed and tested application modules with systematic debugging, reducing defect reopen rate by 40%."
+        "Developed and enhanced ERP backend modules using Java, Spring Boot, Hibernate, and REST APIs for employee and operational workflows.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
       ]
     }
   ],
@@ -80,7 +80,8 @@
     ],
     "databases": [
       "MySQL",
-      "MongoDB"
+      "MongoDB",
+      "PostgreSQL"
     ],
     "tools_java": [
       "Git",
@@ -107,13 +108,19 @@
     "concepts_core": [
       "Object-Oriented Programming (OOP)",
       "Data Structures & Algorithms (DSA)",
-      "SDLC"
+      "SDLC",
+      "Design Patterns",
+      "Problem Solving",
+      "Time Complexity Analysis"
     ],
     "concepts_backend": [
       "REST API Design",
       "Database Optimization",
       "RBAC",
       "JWT Authentication",
+      "Microservice Fundamentals",
+      "API Security",
+      "Multi-Tenant Architecture",
       "Multithreading"
     ],
     "concepts_cpp": [
@@ -127,12 +134,18 @@
       "Socket Programming",
       "Memory Management",
       "Linux Internals",
-      "Concurrent Programming"
+      "Concurrent Programming",
+      "Process Scheduling",
+      "File System Design",
+      "Inter Process Communication (IPC)",
+      "Network Programming"
     ],
     "exposure": [
-      "AI/ML fundamentals",
-      "Cloud computing basics (AWS)",
-      "Big Data concepts"
+      "AWS Fundamentals",
+      "Docker Fundamentals",
+      "CI/CD Concepts",
+      "AI/ML Fundamentals",
+      "Big Data Concepts"
     ]
   },
   "strengths_pool": {
@@ -146,6 +159,11 @@
     "S8": "Hands-on experience implementing OS-level components: file systems, network servers, and memory analyzers.",
     "S9": "Analytical problem-solving with ability to design and develop solutions under time-bound delivery constraints.",
     "S10": "Active GitHub contributor with documented production-oriented and systems-level project portfolio.",
-    "S11": "Good understanding of Linux internals, /proc filesystem, virtual memory layout, and process management."
+    "S11": "Good understanding of Linux internals, /proc filesystem, virtual memory layout, and process management.",
+    "S12": "Hands-on experience building full-stack applications using Spring Boot, Angular, React, Node.js, and MongoDB.",
+    "S13": "Experience designing scalable backend architectures with authentication, authorization, and database optimization.",
+    "S14": "Strong understanding of operating system internals including process management, memory layout, and file systems.",
+    "S15": "Practical exposure to network programming, socket communication, and concurrent server development.",
+    "S16": "Ability to rapidly learn unfamiliar technologies and deliver production-ready solutions under tight deadlines."
   }
 }
