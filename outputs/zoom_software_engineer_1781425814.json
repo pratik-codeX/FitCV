@@ -1,0 +1,102 @@
+{
+  "summary": "Java candidate with strong foundation in backend, REST APIs, JWT \u2014 application development. Experience building backend applications using Spring Boot, Java, and MySQL.",
+  "skills": {
+    "Languages": [
+      "Java",
+      "SQL",
+      "JavaScript",
+      "C++",
+      "C",
+      "Python (basics)"
+    ],
+    "Backend": [
+      "Spring Boot",
+      "REST APIs",
+      "Spring Security",
+      "JWT",
+      "Hibernate",
+      "JDBC"
+    ],
+    "Databases": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Tools": [
+      "Git",
+      "GitHub",
+      "Maven",
+      "Postman",
+      "IntelliJ IDEA"
+    ],
+    "Concepts": [
+      "RBAC",
+      "JWT Authentication",
+      "REST API Design",
+      "Multi-Tenant Architecture",
+      "API Security",
+      "Object-Oriented Programming (OOP)",
+      "Data Structures & Algorithms (DSA)",
+      "Design Patterns",
+      "SDLC",
+      "Multithreading",
+      "Database Optimization",
+      "Problem Solving",
+      "Time Complexity Analysis",
+      "Microservice Fundamentals"
+    ],
+    "AI Tools": [
+      "Ai"
+    ]
+  },
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed and enhanced scalable backend modules for multiple client projects using Java, Spring Boot, Hibernate, and REST APIs.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "PayStride",
+      "subtitle": "Multi-Tenant SaaS Payroll Management System",
+      "tech": "Java, Spring Boot, MySQL, Hibernate, REST API, JWT",
+      "bullets": [
+        "Architected multi-tenant RBAC system using Spring Security and JWT.",
+        "Optimized MySQL query execution, reducing average response latency by 40%.",
+        "Engineered payroll computation engine with zero precision loss."
+      ]
+    },
+    {
+      "name": "EduTrack",
+      "subtitle": "Student Management Portal",
+      "tech": "Java, Spring Boot, MongoDB, REST API",
+      "bullets": [
+        "Developed RESTful CRUD APIs over Spring Boot handling 500+ student records.",
+        "Designed modular service architecture enabling independent scaling.",
+        "Implemented dual-layer validation, reducing data entry errors by 25%."
+      ]
+    },
+    {
+      "name": "Chat Messenger with Log Facility",
+      "subtitle": "Peer-to-Peer Real-Time Messaging Application",
+      "tech": "Java, Multithreading, Socket Programming",
+      "bullets": [
+        "Developed peer-to-peer messaging system using Java sockets.",
+        "Implemented concurrent message handling using multithreading.",
+        "Designed persistent chat logging mechanism for auditing."
+      ]
+    }
+  ],
+  "strengths": [
+    "Proficient in backend application development, REST API design, and database-driven systems.",
+    "Hands-on experience building concurrent, multi-tenant, and performance-optimized Java applications.",
+    "Experience designing scalable backend architectures with authentication, authorization, and database optimization.",
+    "Strong foundation in Data Structures, Algorithms, and Object-Oriented Design."
+  ]
+}

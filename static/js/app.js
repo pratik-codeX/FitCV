@@ -2,6 +2,7 @@ const UI = {
     states: {
         idle: document.getElementById('state-idle'),
         loading: document.getElementById('state-loading'),
+        approval: document.getElementById('state-approval'),
         result: document.getElementById('state-result'),
         error: document.getElementById('state-error')
     },
@@ -22,6 +23,14 @@ const UI = {
     ps3: document.getElementById('ps-3'),
     ps4: document.getElementById('ps-4'),
     loadMsg: document.getElementById('loading-msg'),
+
+    // Approval
+    btnApprove: document.getElementById('btn-approve'),
+    approvalCoverage: document.getElementById('approval-coverage'),
+    approvalMissingKws: document.getElementById('approval-missing-kws'),
+    approvalMissingCats: document.getElementById('approval-missing-cats'),
+    approvalRecommended: document.getElementById('approval-recommended'),
+    approvalAlternatives: document.getElementById('approval-alternatives'),
 
     // Result
     atsScore: document.getElementById('ats-score'),
@@ -102,6 +111,11 @@ UI.btnCopy.addEventListener('click', () => {
     setTimeout(() => UI.btnCopy.textContent = "Copy text", 2000);
 });
 
+
+let analyzeData = null;
+let selectedProjectIds = [];
+let allProjectsMap = {};
+
 UI.form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -116,33 +130,344 @@ UI.form.addEventListener('submit', async (e) => {
 
     UI.btnGen.disabled = true;
     UI.statusDot.className = 'status-dot active';
-    UI.statusText.textContent = 'Running pipeline...';
+    UI.statusText.textContent = 'Analyzing JD...';
     showState('loading');
 
     updatePipe(1, 'active');
     updatePipe(2, 'idle'); updatePipe(3, 'idle'); updatePipe(4, 'idle');
-    UI.loadMsg.textContent = 'Extracting keywords from Job Description...';
-
-    const t1 = setTimeout(() => {
-        updatePipe(1, 'done');
-        updatePipe(2, 'active');
-        UI.loadMsg.textContent = 'Assembling resume (this takes 10-15s)...';
-    }, 2500);
+    UI.loadMsg.textContent = 'Extracting keywords & ranking projects...';
 
     try {
-        const resp = await fetch('/api/generate', {
+        const resp = await fetch('/api/analyze-job', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        clearTimeout(t1);
         const data = await resp.json();
 
+        if (!resp.ok) {
+            throw new Error(data.error || "Analysis failed");
+        }
+
+        analyzeData = data;
+        analyzeData.payload = payload; // save for next step
+        
+        updatePipe(1, 'done');
+        renderApproval(data);
+        showState('approval');
+        UI.statusDot.className = 'status-dot';
+        UI.statusText.textContent = 'Awaiting Approval';
+        UI.btnGen.disabled = false;
+
+    } catch (err) {
+        UI.errorMsg.textContent = err.message;
+        showState('error');
+        UI.statusDot.className = 'status-dot error';
+        UI.statusText.textContent = 'Error';
+        UI.btnGen.disabled = false;
+    }
+});
+
+function createProjectCard(p, isSelected) {
+    const card = document.createElement('div');
+    card.className = `project-card ${isSelected ? 'selected' : ''}`;
+    card.dataset.id = p.id;
+    
+    const header = document.createElement('div');
+    header.className = 'project-card-header';
+    
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'project-title-container';
+    
+    const checkboxContainer = document.createElement('div');
+    checkboxContainer.className = 'checkbox-container';
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = p.id;
+    cb.className = 'proj-cb';
+    cb.checked = isSelected;
+    cb.id = `cb-${p.id}`;
+    cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleCardToggle(p.id);
+    });
+    
+    const customCheckbox = document.createElement('span');
+    customCheckbox.className = 'custom-checkbox';
+    
+    checkboxContainer.appendChild(cb);
+    checkboxContainer.appendChild(customCheckbox);
+    
+    const title = document.createElement('span');
+    title.className = 'project-title';
+    title.textContent = p.name;
+    
+    titleContainer.appendChild(checkboxContainer);
+    titleContainer.appendChild(title);
+    
+    const score = document.createElement('span');
+    score.className = 'project-score';
+    score.textContent = `Score: ${p.score}/100`;
+    
+    header.appendChild(titleContainer);
+    header.appendChild(score);
+    
+    card.appendChild(header);
+    
+    const categories = document.createElement('div');
+    categories.className = 'project-categories';
+    categories.textContent = `Categories: ${(p.categories || []).join(' • ')}`;
+    card.appendChild(categories);
+    
+    if (p.reasons && p.reasons.length > 0) {
+        const matchesContainer = document.createElement('div');
+        matchesContainer.className = 'project-matches';
+        p.reasons.forEach(r => {
+            const matchItem = document.createElement('span');
+            matchItem.className = 'match-item';
+            matchItem.textContent = r;
+            matchesContainer.appendChild(matchItem);
+        });
+        card.appendChild(matchesContainer);
+    }
+    
+    card.addEventListener('click', () => {
+        handleCardToggle(p.id);
+    });
+    
+    return card;
+}
+
+function handleCardToggle(projectId) {
+    const card = document.querySelector(`.project-card[data-id="${projectId}"]`);
+    if (!card) return;
+    const cb = card.querySelector('.proj-cb');
+    const isCurrentlySelected = selectedProjectIds.includes(projectId);
+    
+    if (isCurrentlySelected) {
+        cb.checked = false;
+        card.classList.remove('selected');
+        selectedProjectIds = selectedProjectIds.filter(id => id !== projectId);
+        updateSelectionUI();
+    } else {
+        if (selectedProjectIds.length >= 3) {
+            showReplacementModal(projectId);
+        } else {
+            cb.checked = true;
+            card.classList.add('selected');
+            selectedProjectIds.push(projectId);
+            updateSelectionUI();
+        }
+    }
+}
+
+function showReplacementModal(newProjectId) {
+    const newProject = allProjectsMap[newProjectId];
+    if (!newProject) return;
+    
+    document.getElementById('replace-new-name').textContent = newProject.name;
+    
+    const listContainer = document.getElementById('replace-options-list');
+    listContainer.innerHTML = '';
+    
+    selectedProjectIds.forEach(oldId => {
+        const oldProject = allProjectsMap[oldId];
+        if (!oldProject) return;
+        
+        const btn = document.createElement('button');
+        btn.className = 'replace-option-btn';
+        btn.innerHTML = `
+            <div>
+                <span style="color:var(--text3); font-size:11px;">Remove</span> ${oldProject.name} <br>
+                <span style="color:var(--text3); font-size:11px;">Add</span> ${newProject.name}
+            </div>
+            <span class="replace-action-text">Replace</span>
+        `;
+        btn.addEventListener('click', () => {
+            selectedProjectIds = selectedProjectIds.filter(id => id !== oldId);
+            selectedProjectIds.push(newProjectId);
+            
+            document.querySelectorAll('.project-card').forEach(cardEl => {
+                const pId = cardEl.dataset.id;
+                const cbEl = cardEl.querySelector('.proj-cb');
+                if (selectedProjectIds.includes(pId)) {
+                    cardEl.classList.add('selected');
+                    if (cbEl) cbEl.checked = true;
+                } else {
+                    cardEl.classList.remove('selected');
+                    if (cbEl) cbEl.checked = false;
+                }
+            });
+            
+            closeReplacementModal();
+            updateSelectionUI();
+        });
+        listContainer.appendChild(btn);
+    });
+    
+    document.getElementById('replacement-modal').style.display = 'flex';
+}
+
+window.closeReplacementModal = function() {
+    document.getElementById('replacement-modal').style.display = 'none';
+};
+
+function updateSelectionUI() {
+    const badge = document.getElementById('selection-count-badge');
+    if (badge) badge.textContent = `${selectedProjectIds.length} / 3 Selected`;
+    
+    const countSpan = document.getElementById('summary-selected-count');
+    if (countSpan) countSpan.textContent = selectedProjectIds.length;
+    
+    const selectedList = document.getElementById('summary-selected-list');
+    selectedList.innerHTML = '';
+    
+    if (selectedProjectIds.length === 0) {
+        selectedList.innerHTML = `<div style="color:var(--text3); font-style:italic; font-size:12px;">No projects selected</div>`;
+    } else {
+        selectedProjectIds.forEach(id => {
+            const p = allProjectsMap[id];
+            if (p) {
+                selectedList.innerHTML += `
+                    <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px; background:var(--surface3); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+                        <span>${p.name}</span>
+                        <span style="color:var(--green); font-size:11px; font-weight:bold;">✓ Selected</span>
+                    </div>
+                `;
+            }
+        });
+    }
+    
+    UI.btnApprove.disabled = (selectedProjectIds.length === 0);
+}
+
+function renderApproval(data) {
+    selectedProjectIds = [];
+    allProjectsMap = {};
+    
+    (data.recommended_projects || []).forEach(p => {
+        selectedProjectIds.push(p.id);
+        allProjectsMap[p.id] = p;
+    });
+    
+    (data.alternative_projects || []).forEach(p => {
+        allProjectsMap[p.id] = p;
+    });
+    
+    UI.approvalRecommended.innerHTML = '';
+    (data.recommended_projects || []).forEach(p => {
+        UI.approvalRecommended.appendChild(createProjectCard(p, true));
+    });
+    
+    UI.approvalAlternatives.innerHTML = '';
+    (data.alternative_projects || []).forEach(p => {
+        UI.approvalAlternatives.appendChild(createProjectCard(p, false));
+    });
+    
+    const covList = document.getElementById('summary-coverage-list');
+    covList.innerHTML = '';
+    for (const [cat, val] of Object.entries(data.coverage || {})) {
+        let barColor = 'var(--accent)';
+        if (cat === 'backend') barColor = 'var(--blue)';
+        if (cat === 'database') barColor = 'var(--green)';
+        
+        covList.innerHTML += `
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; text-transform:capitalize;">
+                    <span>${cat}</span>
+                    <span style="font-weight:bold;">${val}%</span>
+                </div>
+                <div style="height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+                    <div style="height:100%; width:${val}%; background:${barColor}; transition: width 0.5s ease-in-out;"></div>
+                </div>
+            </div>
+        `;
+    }
+    
+    const missingList = document.getElementById('summary-missing-list');
+    missingList.innerHTML = '';
+    (data.missing_keywords || []).forEach(kw => {
+        missingList.innerHTML += `<span class="ic-tag bad" style="background:#2e1a1a; color:#eb5757; font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid rgba(235,87,87,0.2);">${kw}</span>`;
+    });
+    
+    const confVal = document.getElementById('summary-confidence-val');
+    const confDesc = document.getElementById('summary-confidence-desc');
+    const confidence = data.recommendation_confidence || 0;
+    
+    confVal.textContent = `${confidence}%`;
+    
+    let interpretation = "";
+    let badgeColor = 'rgba(124, 109, 250, 0.1)';
+    let textColor = 'var(--accent)';
+    let borderColor = 'rgba(124, 109, 250, 0.2)';
+    
+    if (confidence >= 90) {
+        interpretation = "Strong Match";
+        badgeColor = 'rgba(61, 214, 140, 0.1)';
+        textColor = 'var(--green)';
+        borderColor = 'rgba(61, 214, 140, 0.2)';
+    } else if (confidence >= 70) {
+        interpretation = "Good Match";
+        badgeColor = 'rgba(91, 156, 246, 0.1)';
+        textColor = 'var(--blue)';
+        borderColor = 'rgba(91, 156, 246, 0.2)';
+    } else if (confidence >= 50) {
+        interpretation = "Partial Match";
+        badgeColor = 'rgba(245, 166, 35, 0.1)';
+        textColor = 'var(--amber)';
+        borderColor = 'rgba(245, 166, 35, 0.2)';
+    } else {
+        interpretation = "Weak Match";
+        badgeColor = 'rgba(242, 95, 92, 0.1)';
+        textColor = 'var(--red)';
+        borderColor = 'rgba(242, 95, 92, 0.2)';
+    }
+    
+    confDesc.textContent = interpretation;
+    confDesc.style.backgroundColor = badgeColor;
+    confDesc.style.color = textColor;
+    confDesc.style.borderColor = borderColor;
+    
+    updateSelectionUI();
+}
+
+UI.btnApprove.addEventListener('click', async () => {
+    const selectedIds = selectedProjectIds;
+    
+    if (selectedIds.length === 0) {
+        alert("Please select at least 1 project.");
+        return;
+    }
+    
+    const payload = {
+        ...analyzeData.payload,
+        selected_projects: selectedIds,
+        stage1: analyzeData.stage1,
+        company_intel: analyzeData.company_intel,
+        jd_categories: analyzeData.jd_categories
+    };
+    
+    UI.btnApprove.disabled = true;
+    showState('loading');
+    updatePipe(2, 'active');
+    UI.loadMsg.textContent = 'Assembling resume (this takes 10-15s)...';
+    UI.statusDot.className = 'status-dot active';
+    UI.statusText.textContent = 'Generating PDF...';
+    
+    try {
+        const resp = await fetch('/api/generate-resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        
         if (!resp.ok || !data.success) {
             throw new Error(data.error || "Generation failed");
         }
-
+        
         updatePipe(2, 'done');
         updatePipe(3, 'active');
         UI.loadMsg.textContent = 'Scoring ATS keywords...';
@@ -156,22 +481,29 @@ UI.form.addEventListener('submit', async (e) => {
                 renderResult(data);
                 showState('result');
                 UI.statusDot.className = 'status-dot done';
-                UI.statusText.textContent = data.from_cache ? '⚡ Cache hit' : 'Complete';
-                UI.btnGen.disabled = false;
+                UI.statusText.textContent = 'Complete';
+                UI.btnApprove.disabled = false;
             }, 400);
         }, 300);
-
+        
     } catch (err) {
-        clearTimeout(t1);
         UI.errorMsg.textContent = err.message;
         showState('error');
         UI.statusDot.className = 'status-dot error';
         UI.statusText.textContent = 'Error';
-        UI.btnGen.disabled = false;
+        UI.btnApprove.disabled = false;
     }
 });
 
+// Original form submit removed entirely below
+
 function renderResult(data) {
+    // Render company intelligence panel first
+    renderIntel(
+        data.company_intel || {},
+        document.getElementById('f-company').value || ''
+    );
+
     // Cache notice banner
     if (data.from_cache) {
         const existingNotice = document.getElementById('cache-notice');
@@ -274,9 +606,9 @@ function renderResult(data) {
                 <span class="bd-pct" style="color:${col}">${s}%</span>
                 <span class="bd-count">${hits}/${total}</span>`;
         }
-        renderBDRow('bd-required',  'Required',  'required');
+        renderBDRow('bd-required', 'Required', 'required');
         renderBDRow('bd-preferred', 'Preferred', 'preferred');
-        renderBDRow('bd-general',   'General',   'general');
+        renderBDRow('bd-general', 'General', 'general');
     }
 
     const rj = data.resume_json;
@@ -372,11 +704,11 @@ UI.btnImprove.addEventListener('click', async () => {
     UI.improvePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     const payload = {
-        api_key:     UI.fKey.value.trim(),
-        jd:          UI.jdInput.value.trim(),
+        api_key: UI.fKey.value.trim(),
+        jd: UI.jdInput.value.trim(),
         resume_json: _lastData.resume_json,
-        stage1:      _lastData.stage1,
-        ats:         _lastData.ats
+        stage1: _lastData.stage1,
+        ats: _lastData.ats
     };
 
     try {
@@ -453,4 +785,75 @@ function renderImprovement(imp, currentScore) {
     }
 
     UI.improveContent.innerHTML = html;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPANY INTELLIGENCE PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleIntel() {
+    const body = document.getElementById('intel-body');
+    const btn = document.getElementById('intel-toggle');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        btn.textContent = '▲ Hide';
+    } else {
+        body.style.display = 'none';
+        btn.textContent = '▼ Show';
+    }
+}
+
+function renderIntel(intel, company) {
+    const panel = document.getElementById('intel-panel');
+    if (!intel || Object.keys(intel).length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = 'block';
+    document.getElementById('intel-company-name').textContent = company;
+
+    // Summary + context
+    document.getElementById('ic-summary-val').textContent =
+        intel.company_summary || 'No data found';
+    document.getElementById('ic-context-val').textContent =
+        intel.role_context || 'No data found';
+
+    // Tech stack tags
+    const techEl = document.getElementById('ic-tech');
+    techEl.innerHTML = '';
+    (intel.tech_stack || []).forEach(t => {
+        const span = document.createElement('span');
+        span.className = 'ic-tag tech';
+        span.textContent = t;
+        techEl.appendChild(span);
+    });
+
+    // Values tags
+    const valEl = document.getElementById('ic-values');
+    valEl.innerHTML = '';
+    (intel.what_they_value || []).forEach(v => {
+        const span = document.createElement('span');
+        span.className = 'ic-tag value';
+        span.textContent = v;
+        valEl.appendChild(span);
+    });
+
+    // Shortlist signals
+    const sigEl = document.getElementById('ic-signals');
+    sigEl.innerHTML = '';
+    (intel.shortlist_signals || []).forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'ic-list-item good';
+        div.textContent = '✓ ' + s;
+        sigEl.appendChild(div);
+    });
+
+    // Rejection signals
+    const avoidEl = document.getElementById('ic-avoid');
+    avoidEl.innerHTML = '';
+    (intel.avoid_signals || []).forEach(a => {
+        const div = document.createElement('div');
+        div.className = 'ic-list-item bad';
+        div.textContent = '✗ ' + a;
+        avoidEl.appendChild(div);
+    });
 }

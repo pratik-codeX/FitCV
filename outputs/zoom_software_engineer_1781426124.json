@@ -1,0 +1,107 @@
+{
+  "summary": "Computer Science candidate with strong foundation in Java, Spring Boot, and REST APIs \u2014 backend development.",
+  "skills": {
+    "Languages": [
+      "Java",
+      "JavaScript",
+      "SQL",
+      "C",
+      "C++",
+      "Python (basics)"
+    ],
+    "Backend": [
+      "Spring Boot",
+      "REST APIs",
+      "Spring Security",
+      "JWT",
+      "Hibernate",
+      "JDBC"
+    ],
+    "Databases": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Tools": [
+      "Git",
+      "Postman",
+      "GitHub",
+      "Maven",
+      "IntelliJ IDEA"
+    ],
+    "Concepts": [
+      "REST API Design",
+      "RBAC",
+      "JWT Authentication",
+      "Object-Oriented Programming (OOP)",
+      "Data Structures & Algorithms (DSA)",
+      "Database Optimization",
+      "Design Patterns",
+      "SDLC",
+      "Multi-Tenant Architecture",
+      "API Security",
+      "Problem Solving",
+      "Microservice Fundamentals",
+      "Time Complexity Analysis",
+      "Multithreading"
+    ],
+    "Exposure": [
+      "AWS Fundamentals",
+      "Big Data Concepts",
+      "AI/ML Fundamentals"
+    ],
+    "AI Tools": [
+      "Ai"
+    ]
+  },
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed and enhanced scalable backend modules for multiple client projects using Java, Spring Boot, Hibernate, and REST APIs.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "PayStride",
+      "subtitle": "Multi-Tenant SaaS Payroll Management System",
+      "tech": "Java, Spring Boot, MySQL, Hibernate, REST API, JWT",
+      "bullets": [
+        "Architected multi-tenant RBAC system using Spring Security and JWT.",
+        "Optimized MySQL query execution through strategic indexing and schema normalization.",
+        "Engineered BigDecimal payroll computation engine handling statutory deductions."
+      ]
+    },
+    {
+      "name": "[FULL-STACK] Restaurant Record App",
+      "subtitle": "Full-Stack Dining Management System",
+      "tech": "MongoDB, Express.js, Angular, Node.js",
+      "bullets": [
+        "Developed CRUD REST APIs using Express.js and MongoDB with JWT authentication.",
+        "Implemented Angular lazy-loading and service abstraction for frontend optimization.",
+        "Designed modular routing architecture supporting role-based menu visibility."
+      ]
+    },
+    {
+      "name": "EduTrack",
+      "subtitle": "Student Management Portal",
+      "tech": "Java, Spring Boot, MongoDB, REST API",
+      "bullets": [
+        "Developed RESTful CRUD APIs over Spring Boot handling 500+ student records.",
+        "Designed modular service architecture enabling independent scaling of modules.",
+        "Implemented dual-layer validation reducing data entry errors by 25%."
+      ]
+    }
+  ],
+  "strengths": [
+    "Proficient in backend application development, REST API design, and database-driven systems.",
+    "Hands-on experience building concurrent, multi-tenant, and performance-optimized Java applications.",
+    "Strong debugging, query optimization, and software architecture capabilities.",
+    "Experience designing scalable backend architectures with authentication, authorization, and database optimization."
+  ]
+}

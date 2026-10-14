@@ -37,9 +37,9 @@
       "location": "Pune",
       "period": "Feb 2026 -- Ongoing",
       "bullets": [
-        "Developed and enhanced ERP backend modules using Java, Spring Boot, Hibernate, and REST APIs for employee and operational workflows.",
-        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
-        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+        "Engineered scalable backend REST APIs for 4+ client projects, including SetTribe ERP application and Meeting & Task Planner, using Java, Spring Boot, and Hibernate.",
+        "Optimized PostgreSQL database queries and implemented server-side validation logic, reducing API response latency by ~30%.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, and deployment support across multiple environments."
       ]
     }
   ],
@@ -48,7 +48,7 @@
       "Java",
       "C",
       "C++",
-      "Python (basics)",
+      "Python",
       "JavaScript",
       "SQL"
     ],
@@ -142,8 +142,10 @@
     ],
     "exposure": [
       "AWS Fundamentals",
+      "Azure Fundamentals",
       "Docker Fundamentals",
       "CI/CD Concepts",
+      "AI-Assisted Development (Claude, Antigravity)",
       "AI/ML Fundamentals",
       "Big Data Concepts"
     ]

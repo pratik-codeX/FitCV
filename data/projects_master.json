@@ -281,6 +281,25 @@
         "Implemented metadata management for file extraction and restoration.",
         "Designed efficient file processing workflows reducing manual file management overhead."
       ]
+    },
+    {
+      "id": "generic-data-structures",
+      "name": "Generic Data Structures Library",
+      "subtitle": "C++ Template-Based Data Structure Implementations",
+      "tech_display": "C++, Templates, Data Structures, OOP",
+      "tags": [
+        "cpp",
+        "data-structures",
+        "templates",
+        "oop",
+        "algorithms"
+      ],
+      "priority": 2,
+      "bullets": [
+        "Engineered a comprehensive generic data structure library in C++ using templates, enabling reusability across different primitive and user-defined data types.",
+        "Implemented core dynamic structures including Singly/Doubly Linked Lists, Circular Linked Lists, Stacks, and Queues with robust memory management.",
+        "Designed custom node traversal algorithms and CRUD operations ensuring optimized time complexity for dynamic data operations."
+      ]
     }
   ]
 }

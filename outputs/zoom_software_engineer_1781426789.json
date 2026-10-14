@@ -1,0 +1,107 @@
+{
+  "summary": "Computer Science candidate with strong foundation in backend, cloud infrastructure, and AI-powered workflows \u2014 developing scalable platforms. Experience building backend applications using Java, Spring Boot, and PostgreSQL.",
+  "skills": {
+    "Languages": [
+      "Java",
+      "JavaScript",
+      "SQL",
+      "Python (basics)",
+      "C",
+      "C++"
+    ],
+    "Backend": [
+      "REST APIs",
+      "Spring Boot",
+      "Spring Security",
+      "JWT",
+      "Hibernate",
+      "JDBC"
+    ],
+    "Databases": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Tools": [
+      "Git",
+      "Postman",
+      "GitHub",
+      "Maven",
+      "IntelliJ IDEA"
+    ],
+    "Concepts": [
+      "REST API Design",
+      "Data Structures & Algorithms (DSA)",
+      "Object-Oriented Programming (OOP)",
+      "SDLC",
+      "Design Patterns",
+      "Problem Solving",
+      "Time Complexity Analysis",
+      "Database Optimization",
+      "RBAC",
+      "JWT Authentication",
+      "Microservice Fundamentals",
+      "API Security",
+      "Multi-Tenant Architecture",
+      "Multithreading"
+    ],
+    "Exposure": [
+      "AWS Fundamentals",
+      "AI/ML Fundamentals",
+      "Big Data Concepts"
+    ],
+    "AI Tools": [
+      "Ai"
+    ]
+  },
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed and enhanced scalable backend modules for multiple client projects using Java, Spring Boot, Hibernate, and REST APIs.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Customised Virtual File System (CVFS)",
+      "subtitle": "In-Memory Linux-like File Manager",
+      "tech": "C, C++, Data Structures, OS Concepts",
+      "bullets": [
+        "Simulated Linux file system operations using C++ with inode-based metadata management.",
+        "Achieved O(1) file lookup by designing hash table-based inode indexing.",
+        "Implemented in-memory file allocation table managing file permissions and traversal."
+      ]
+    },
+    {
+      "name": "ProcMemInspector",
+      "subtitle": "Linux Process Memory Layout Analyzer",
+      "tech": "C, Linux Internals, /proc Filesystem",
+      "bullets": [
+        "Developed /proc filesystem parser in C to extract virtual memory layout of processes.",
+        "Implemented process statistics monitoring by reading /proc/[pid]/maps and /proc/[pid]/status.",
+        "Analyzed virtual address space segmentation demonstrating memory isolation."
+      ]
+    },
+    {
+      "name": "Command Suite",
+      "subtitle": "Re-implementation of Linux Core Utilities",
+      "tech": "C, Linux System Programming, POSIX System Calls",
+      "bullets": [
+        "Re-implemented core Linux utilities using POSIX system calls including stat() and opendir().",
+        "Handled file permission bitmask parsing, directory traversal, and process status extraction.",
+        "Implemented full flag-based argument parsing matching standard GNU utility behavior."
+      ]
+    }
+  ],
+  "strengths": [
+    "Proficient in backend application development, REST API design, and database-driven systems.",
+    "Strong debugging, query optimization, and software architecture capabilities.",
+    "Hands-on experience building concurrent, multi-tenant, and performance-optimized Java applications.",
+    "Practical exposure to network programming, socket communication, and concurrent server development."
+  ]
+}

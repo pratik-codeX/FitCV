@@ -1,0 +1,99 @@
+{
+  "summary": "Computer Engineering candidate with strong foundation in Java, Spring Boot, REST APIs \u2014 backend development. Hands-on experience developing ERP modules using Java, Spring Boot, Hibernate, and REST APIs through practical projects.",
+  "skills": {
+    "Languages": [
+      "Java",
+      "C",
+      "C++",
+      "SQL",
+      "JavaScript",
+      "Python (basics)"
+    ],
+    "Backend": [
+      "Spring Boot",
+      "REST APIs",
+      "Spring Security",
+      "Hibernate",
+      "JWT",
+      "JDBC"
+    ],
+    "Databases": [
+      "MySQL",
+      "MongoDB"
+    ],
+    "Tools": [
+      "Git",
+      "GitHub",
+      "Maven",
+      "Postman",
+      "IntelliJ IDEA"
+    ],
+    "Concepts": [
+      "SDLC",
+      "Object-Oriented Programming (OOP)",
+      "Data Structures & Algorithms (DSA)",
+      "REST API Design",
+      "Design Patterns",
+      "Problem Solving",
+      "Database Optimization",
+      "API Security",
+      "Microservice Fundamentals",
+      "Time Complexity Analysis",
+      "RBAC",
+      "Multi-Tenant Architecture",
+      "JWT Authentication",
+      "Multithreading"
+    ]
+  },
+  "experience": [
+    {
+      "role": "Software Developer Intern",
+      "company": "SetTribe IT Solutions",
+      "location": "Pune",
+      "period": "Feb 2026 -- Ongoing",
+      "bullets": [
+        "Developed and enhanced ERP backend modules using Java, Spring Boot, Hibernate, and REST APIs for employee and operational workflows.",
+        "Integrated PostgreSQL database operations, validation logic, and API testing workflows using Postman.",
+        "Collaborated in Agile sprint cycles, performing Git-based code reviews, bug fixes, feature implementation, and deployment support."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Customised Virtual File System (CVFS)",
+      "subtitle": "In-Memory Linux-like File Manager",
+      "tech": "C, C++, Data Structures, OS Concepts",
+      "bullets": [
+        "Simulated Linux file system operations using C++ and inode-based metadata management.",
+        "Achieved O(1) file lookup by designing hash table-based inode indexing.",
+        "Implemented in-memory file allocation table managing file permissions and directory traversal."
+      ]
+    },
+    {
+      "name": "ProcMemInspector",
+      "subtitle": "Linux Process Memory Layout Analyzer",
+      "tech": "C, Linux Internals, /proc Filesystem",
+      "bullets": [
+        "Developed /proc filesystem parser in C to display virtual memory layout of processes.",
+        "Implemented process statistics monitoring by reading /proc/[pid]/maps and /proc/[pid]/status.",
+        "Analyzed virtual address space segmentation demonstrating memory isolation."
+      ]
+    },
+    {
+      "name": "Concurrent FTP Server",
+      "subtitle": "Multi-Client File Transfer Protocol Server",
+      "tech": "C, POSIX Threads, TCP Sockets, Multithreading",
+      "bullets": [
+        "Engineered concurrent client handling using POSIX threads over TCP sockets.",
+        "Implemented thread-safe resource management using mutex and semaphore primitives.",
+        "Designed application-layer protocol over raw sockets handling authentication and commands."
+      ]
+    }
+  ],
+  "strengths": [
+    "Strong foundation in C++ OOP, STL containers, templates, and dynamic memory management.",
+    "Proficient in POSIX system calls, concurrent programming, and Linux kernel interface design.",
+    "Hands-on experience implementing OS-level components: file systems, network servers, and memory analyzers.",
+    "Practical exposure to network programming, socket communication, and concurrent server development."
+  ]
+}

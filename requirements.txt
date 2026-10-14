@@ -3,3 +3,4 @@ flask-cors>=4.0.0
 requests>=2.31.0
 reportlab>=4.0.0
 pypdf>=4.0.0
+json-repair>=0.30.0

@@ -5,9 +5,171 @@ import time
 import hashlib
 import subprocess
 import shutil
+import math
 from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 import requests
+import json_repair
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAXONOMY ENGINE & SEMANTIC MATCHING
+# ─────────────────────────────────────────────────────────────────────────────
+SKILL_CATEGORIES = {
+    "frontend": ["react", "angular", "vue", "javascript", "typescript", "html", "css", "frontend", "ui", "responsive design", "bootstrap"],
+    "backend": ["java", "spring", "node", "python", "api", "microservices", "hibernate", "rest", "backend"],
+    "database": ["mysql", "postgresql", "mongodb", "redis", "sql", "nosql", "database", "oracle"],
+    "cloud": ["aws", "azure", "gcp", "cloud", "docker", "kubernetes", "ci/cd", "jenkins", "terraform"],
+    "ai": ["openai", "gemini", "langchain", "rag", "llm", "ai", "automation", "prompt engineering", "machine learning"]
+}
+
+COMMON_SYNONYMS = {
+    "java programming": "java",
+    "java developer": "java",
+    "problem solving skills": "problem solving",
+    "problem solving": "problem solving",
+    "analytical problem solving": "problem solving",
+    "software development lifecycle": "sdlc",
+    "software development life cycle": "sdlc",
+    "sdlc": "sdlc",
+    "object oriented programming": "oop",
+    "object-oriented programming": "oop",
+    "oop": "oop",
+    "data structures": "dsa",
+    "data structures & algorithms": "dsa",
+    "data structures and algorithms": "dsa",
+    "dsa": "dsa",
+    "restful api": "rest api",
+    "restful apis": "rest api",
+    "rest api": "rest api",
+    "rest apis": "rest api",
+    "web api": "api",
+    "web apis": "api",
+    "relational database": "database",
+    "sql database": "database",
+    "nosql database": "database",
+    "version control": "git",
+    "git version control": "git",
+    "github": "git",
+    "ci/cd": "ci/cd",
+    "continuous integration": "ci/cd",
+    "continuous deployment": "ci/cd",
+    "c++ programming": "cpp",
+    "c++": "cpp",
+    "c programming": "c",
+    "c language": "c",
+    "docker containers": "docker",
+    "docker": "docker",
+    "kubernetes": "kubernetes",
+    "k8s": "kubernetes",
+    "agile methodologies": "agile",
+    "agile cycle": "agile",
+    "agile sprint": "agile",
+    "multithreaded programming": "multithreading",
+    "multithreading": "multithreading",
+    "concurrent programming": "concurrency",
+    "concurrency": "concurrency",
+}
+
+def get_category(skill: str) -> str:
+    s = skill.lower()
+    for cat, keywords in SKILL_CATEGORIES.items():
+        if any(kw in s for kw in keywords):
+            return cat
+    return "other"
+
+def cosine_similarity(v1, v2):
+    if not v1 or not v2: return 0.0
+    dot = sum(a*b for a, b in zip(v1, v2))
+    norm1 = math.sqrt(sum(a*a for a in v1))
+    norm2 = math.sqrt(sum(b*b for b in v2))
+    if norm1 == 0 or norm2 == 0: return 0.0
+    return dot / (norm1 * norm2)
+
+def get_embedding(text: str, api_key: str) -> list:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
+    try:
+        resp = requests.post(url, headers={'Content-Type': 'application/json'}, json={"model": "models/text-embedding-004", "content": {"parts": [{"text": text}]}}, timeout=5)
+        if resp.status_code == 200:
+            return resp.json().get('embedding', {}).get('values', [])
+    except:
+        pass
+    return []
+
+_EMBEDDINGS_CACHE = {}
+
+def get_cached_embedding(text: str, api_key: str) -> list:
+    text = text.lower().strip()
+    if text not in _EMBEDDINGS_CACHE:
+        emb = get_embedding(text, api_key)
+        if emb:
+            _EMBEDDINGS_CACHE[text] = emb
+        else:
+            _EMBEDDINGS_CACHE[text] = []
+    return _EMBEDDINGS_CACHE[text]
+
+def normalize_keyword(kw: str) -> str:
+    if not isinstance(kw, str):
+        return ""
+    kw = kw.lower().strip()
+    kw = re.sub(r'\b(programming|skills|development|lifecycle|life cycle|technologies|framework|systems|tools|architecture|developer|methodologies|sprint|cycle|concepts)\b', '', kw)
+    kw = re.sub(r'[^a-z0-9+#\-\s]', '', kw)
+    kw = re.sub(r'\s+', ' ', kw).strip()
+    if kw in COMMON_SYNONYMS:
+        return COMMON_SYNONYMS[kw]
+    return kw
+
+def compile_project_reasons(p, target_tags, jd_categories):
+    reasons = []
+    p_tags = [t.lower() for t in p.get('tags', [])]
+    
+    # 1. Check tag matches
+    for tag in p_tags:
+        for tgt in target_tags:
+            tgt_norm = normalize_keyword(tgt)
+            tag_norm = normalize_keyword(tag)
+            if tag_norm and tgt_norm and (tag_norm == tgt_norm or tag_norm in tgt_norm or tgt_norm in tag_norm):
+                # Capitalize tech name nicely
+                tech_display = tag.title()
+                if tag.lower() == 'cpp' or tag.lower() == 'c++':
+                    tech_display = 'C++'
+                elif tag.lower() == 'c':
+                    tech_display = 'C'
+                elif tag.lower() == 'jwt':
+                    tech_display = 'JWT'
+                elif tag.lower() in ['api', 'apis', 'rest-api']:
+                    tech_display = 'REST API'
+                elif tag.lower() == 'sql':
+                    tech_display = 'SQL'
+                elif tag.lower() == 'nosql':
+                    tech_display = 'NoSQL'
+                elif tag.lower() == 'dbms':
+                    tech_display = 'DBMS'
+                elif tag.lower() == 'os':
+                    tech_display = 'Operating Systems'
+                elif tag.lower() == 'dsa':
+                    tech_display = 'Data Structures & Algorithms'
+                elif tag.lower() == 'rbac':
+                    tech_display = 'RBAC Authentication'
+                
+                reason_str = f"✓ {tech_display} Match"
+                if reason_str not in reasons:
+                    reasons.append(reason_str)
+                    
+    # 2. Check category matches
+    p_cats = set(get_category(t) for t in p_tags) - {"other"}
+    for cat in p_cats.intersection(jd_categories):
+        cat_display = cat.title()
+        if cat == 'db' or cat == 'database':
+            cat_display = 'Database'
+        reason_str = f"✓ {cat_display} Architecture Match" if cat != 'database' else "✓ Database Match"
+        if reason_str not in reasons:
+            reasons.append(reason_str)
+            
+    # 3. Full stack check
+    if 'frontend' in p_cats and 'backend' in p_cats:
+        reasons.append("✓ Full Stack Match")
+        
+    return reasons
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GEMINI API KEY SETUP (FREE — no credit card required)
@@ -93,14 +255,14 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
         uni    = esc(edu.get('university', edu.get('institution', '')))
         year_str = f"{year} $|$ {esc(status)}" if status else year
         edu_latex_lines.append(
-            f"\\textbf{{{degree}}} \\hfill \\textit{{{year_str}}}\\\\\n{uni} \\hfill {score}\\\\[4pt]"
+            f"\\textbf{{{degree}}} \\hfill \\textit{{{year_str}}}\\\\\n{uni} \\hfill {score}\n\\vspace{{3pt}}"
         )
 
     # ── LaTeX Preamble ────────────────────────────────────────────────────────
     lines = [
         r"\documentclass[10.5pt,a4paper]{article}",
-        # FIX 4: tighter margins, removed lmodern (not installed)
-        r"\usepackage[top=0.38in, bottom=0.36in, left=0.44in, right=0.44in]{geometry}",
+        # Updated: balanced margins to prevent overflowing to page 2
+        r"\usepackage[top=0.45in, bottom=0.45in, left=0.55in, right=0.55in]{geometry}",
         r"\usepackage{enumitem}",
         r"\usepackage[hidelinks,unicode]{hyperref}",
         r"\usepackage[T1]{fontenc}",
@@ -115,8 +277,8 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
         r"\setlength{\parskip}{0pt}",
         # FIX 4: use \section not \section* so titlerule renders
         r"\titleformat{\section}{\normalfont\normalsize\bfseries\uppercase}{}{0em}{}[\vspace{1.5pt}\titlerule\vspace{3pt}]",
-        r"\titlespacing*{\section}{0pt}{5pt}{0pt}",
-        r"\setlist[itemize]{leftmargin=1.2em,itemsep=0.5pt,parsep=0pt,topsep=1.5pt,partopsep=0pt}",
+        r"\titlespacing*{\section}{0pt}{6pt}{3pt}",
+        r"\setlist[itemize]{leftmargin=1.2em,itemsep=1.5pt,parsep=0pt,topsep=2pt,partopsep=0pt}",
         r"\begin{document}",
         # ── Header ──────────────────────────────────────────────────────────
         r"\begin{center}",
@@ -130,15 +292,8 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
     summary = resume_json.get('summary', '')
     if summary:
         lines.append(r"\section{Professional Summary}")
-        # Split into sentences, render as separate lines with small gap
-        sentences = [s.strip() for s in summary.replace('\n', ' ').split('. ') if s.strip()]
-        for i, sent in enumerate(sentences):
-            if not sent.endswith('.'):
-                sent += '.'
-            if i < len(sentences) - 1:
-                lines.append(f"{esc(sent)}\\\\[2pt]")
-            else:
-                lines.append(f"{esc(sent)}")
+        # Render summary as a single continuous paragraph
+        lines.append(esc(summary.strip()))
 
     # ── Technical Skills ─────────────────────────────────────────────────────
     skills = resume_json.get('skills', {})
@@ -154,7 +309,12 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
 
     # ── Professional Experience ──────────────────────────────────────────────
     experience = resume_json.get('experience', [])
-    if experience:
+    if not experience:
+        raise ValueError(
+            "generate_latex() called with empty 'experience' — LLM truncated. "
+            "Schema validation should have caught this first."
+        )
+    if True:  # always render
         lines.append(r"\section{Professional Experience}")
         for exp in experience:
             role_str   = esc(exp.get('role', ''))
@@ -172,7 +332,12 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
 
     # ── Academic Projects ─────────────────────────────────────────────────────
     projects = resume_json.get('projects', [])
-    if projects:
+    if not projects:
+        raise ValueError(
+            "generate_latex() called with empty 'projects' — LLM truncated. "
+            "Schema validation should have caught this first."
+        )
+    if True:  # always render
         lines.append(r"\section{Academic Projects}")
         for i, proj in enumerate(projects):
             pname    = esc(proj.get('name', ''))
@@ -186,11 +351,16 @@ def generate_latex(resume_json: dict, profile_data: dict, relocation: str = "") 
                     lines.append(f"  \\item {esc(b)}")
                 lines.append(r"\end{itemize}")
             if i < len(projects) - 1:
-                lines.append(r"\vspace{2pt}")
+                lines.append(r"\vspace{4pt}")
 
     # ── Technical Strengths ──────────────────────────────────────────────────
     strengths = resume_json.get('strengths', [])
-    if strengths:
+    if not strengths:
+        raise ValueError(
+            "generate_latex() called with empty 'strengths' — LLM truncated. "
+            "Schema validation should have caught this first."
+        )
+    if True:  # always render
         lines.append(r"\section{Technical Strengths}")
         lines.append(r"\begin{itemize}")
         for s in strengths:
@@ -228,6 +398,315 @@ def filter_skills(skills_dict: dict) -> dict:
         else:
             cleaned[category] = items
     return cleaned
+
+
+def get_primary_education(profile: dict) -> str:
+    """Read education directly from profile data and determine highest current qualification."""
+    education_list = profile.get('education', [])
+    if not education_list:
+        return ""
+    
+    for edu in education_list:
+        deg = edu.get('degree', '').upper()
+        status = edu.get('status', '').strip().lower()
+        
+        deg_label = ""
+        if 'MASTER OF COMPUTER APPLICATIONS' in deg or 'MCA' in deg:
+            deg_label = "MCA"
+        elif 'BACHELOR OF COMPUTER APPLICATIONS' in deg or 'BCA' in deg:
+            deg_label = "BCA"
+        elif 'BACHELOR OF TECHNOLOGY' in deg or 'BTECH' in deg:
+            deg_label = "BTech"
+        elif 'BACHELOR OF ENGINEERING' in deg or 'BE' in deg:
+            deg_label = "BE"
+        elif 'HIGHER SECONDARY' in deg or 'HSC' in deg or '12TH' in deg:
+            deg_label = "HSC"
+        else:
+            match = re.search(r'\b[A-Za-z]+\b', edu.get('degree', ''))
+            if match:
+                deg_label = match.group(0)
+            else:
+                deg_label = edu.get('degree', '')
+        
+        if not deg_label:
+            continue
+            
+        if status == 'pursuing' or 'pursuing' in edu.get('year', '').lower():
+            return f"{deg_label} Candidate"
+        else:
+            return f"{deg_label} Graduate"
+            
+    return ""
+
+
+def validate_education(summary: str, primary_edu: str) -> bool:
+    """Compare generated education in summary against profile education. Returns True if valid."""
+    if not primary_edu:
+        return True
+    
+    summary_lower = summary.lower()
+    edu_lower = primary_edu.lower()
+    
+    all_degrees = ["btech", "b.tech", "mca", "bca", "bsc", "b.sc", "msc", "m.sc", "be", "b.e", "mtech", "m.tech"]
+    
+    mentioned = []
+    for d in all_degrees:
+        if re.search(r'\b' + re.escape(d) + r'\b', summary_lower):
+            mentioned.append(d)
+            
+    if "master of computer applications" in summary_lower:
+        mentioned.append("mca")
+    if "bachelor of computer applications" in summary_lower:
+        mentioned.append("bca")
+    if "bachelor of technology" in summary_lower:
+        mentioned.append("btech")
+    if "bachelor of engineering" in summary_lower:
+        mentioned.append("be")
+        
+    mentioned = list(set(mentioned))
+    
+    primary_degree_type = ""
+    for d in all_degrees:
+        if d in edu_lower:
+            primary_degree_type = d
+            break
+            
+    if primary_degree_type:
+        for m in mentioned:
+            if m != primary_degree_type:
+                return False
+        if primary_degree_type not in summary_lower:
+            return False
+            
+    return True
+
+
+def extract_ai_evidence(profile: dict, selected_projects: list) -> list:
+    """Extract AI tools only if explicitly present in projects_master.json (selected), resume_ready.json, experience, or certifications."""
+    ai_keywords = [
+        "gemini api", "openai api", "langchain", "rag", 
+        "prompt engineering", "workflow automation", "ai applications",
+        "gemini", "openai", "llm", "large language model", 
+        "artificial intelligence", "machine learning"
+    ]
+    
+    found_tools = set()
+    
+    def scan_text(text: str):
+        if not text: return
+        t_low = text.lower()
+        for kw in ai_keywords:
+            if re.search(r'\b' + re.escape(kw) + r'\b', t_low):
+                if kw in ["gemini api", "gemini"]:
+                    found_tools.add("Gemini API")
+                elif kw in ["openai api", "openai"]:
+                    found_tools.add("OpenAI API")
+                elif kw == "langchain":
+                    found_tools.add("LangChain")
+                elif kw == "rag":
+                    found_tools.add("RAG")
+                elif kw == "prompt engineering":
+                    found_tools.add("Prompt Engineering")
+                elif kw == "workflow automation":
+                    found_tools.add("Workflow Automation")
+                elif kw in ["ai applications", "artificial intelligence", "ai", "llm", "large language model", "machine learning"]:
+                    found_tools.add("AI Applications")
+                    
+    for cat, items in profile.get('skills_pool', {}).items():
+        for item in items:
+            scan_text(item)
+            
+    for exp in profile.get('experience', []):
+        scan_text(exp.get('role', ''))
+        scan_text(exp.get('company', ''))
+        for bullet in exp.get('bullets', []):
+            scan_text(bullet)
+            
+    for cert in profile.get('certifications', []):
+        if isinstance(cert, str):
+            scan_text(cert)
+        elif isinstance(cert, dict):
+            scan_text(cert.get('name', ''))
+            scan_text(cert.get('authority', ''))
+            
+    for p in selected_projects:
+        scan_text(p.get('name', ''))
+        scan_text(p.get('subtitle', ''))
+        scan_text(p.get('tech', ''))
+        for tag in p.get('tags', []):
+            scan_text(tag)
+        for b in p.get('bullets', []):
+            scan_text(b)
+            
+    return sorted(list(found_tools))
+
+
+def cleanup_empty_sections(resume_json: dict) -> dict:
+    """Automatically remove sections with empty content, placeholder values, or single generic words."""
+    if 'skills' not in resume_json:
+        return resume_json
+        
+    skills = resume_json['skills']
+    if not isinstance(skills, dict):
+        return resume_json
+        
+    keys_to_delete = []
+    for section_name, items in list(skills.items()):
+        if not items:
+            keys_to_delete.append(section_name)
+            continue
+            
+        if not isinstance(items, list):
+            keys_to_delete.append(section_name)
+            continue
+            
+        cleaned_items = []
+        for item in items:
+            if not isinstance(item, str):
+                continue
+            item_strip = item.strip()
+            item_lower = item_strip.lower()
+            sec_lower = section_name.lower()
+            
+            if item_lower in ["n/a", "none", "placeholder", "null", "undefined"]:
+                continue
+                
+            if item_lower == sec_lower:
+                continue
+            if sec_lower == "ai tools" and item_lower in ["ai", "ai tools"]:
+                continue
+            if sec_lower == "cloud" and item_lower in ["cloud", "cloud tools"]:
+                continue
+            if sec_lower == "skills" and item_lower in ["skills", "skill"]:
+                continue
+                
+            cleaned_items.append(item_strip)
+            
+        if not cleaned_items:
+            keys_to_delete.append(section_name)
+        else:
+            skills[section_name] = cleaned_items
+            
+    for key in keys_to_delete:
+        del skills[key]
+        
+    return resume_json
+
+
+def clean_project_name(name: str) -> str:
+    # Lowercase, replace z with s to normalize customized/customised
+    n = name.lower().replace('customised', 'customized')
+    # Remove bracketed tags like [full-stack] or [backend]
+    n = n.replace('[full-stack]', '').replace('[backend]', '').replace('[systems]', '')
+    # Keep only alphanumeric characters and spaces
+    n = re.sub(r'[^a-z0-9\s]', '', n)
+    return " ".join(n.split())
+
+
+def validate_resume_integrity(resume_json: dict, profile: dict, selected_projects: list, role_type: str = '') -> dict:
+    """Validate resume sections for factual accuracy, AI sections, project correctness, and tech preservation."""
+    primary_edu = get_primary_education(profile)
+    summary = resume_json.get('summary', '')
+    education_valid = validate_education(summary, primary_edu)
+    
+    ai_evidence = extract_ai_evidence(profile, selected_projects)
+    ai_skills = resume_json.get('skills', {}).get('AI Tools', [])
+    
+    if not ai_evidence:
+        ai_section_valid = (len(ai_skills) == 0)
+    else:
+        ai_section_valid = True
+        for tool in ai_skills:
+            if tool not in ai_evidence and tool.lower() not in [t.lower() for t in ai_evidence]:
+                ai_section_valid = False
+                break
+                
+    generated_proj_names = [clean_project_name(p.get('name', '')) for p in resume_json.get('projects', [])]
+    selected_proj_names = [clean_project_name(p.get('name', '')) for p in selected_projects]
+    
+    projects_valid = True
+    for name in selected_proj_names:
+        if not name: continue
+        found = False
+        for gen_name in generated_proj_names:
+            if not gen_name: continue
+            if name in gen_name or gen_name in name:
+                found = True
+                break
+        if not found:
+            projects_valid = False
+            break
+            
+    technology_preserved = True
+    gen_projects_str = json.dumps(resume_json.get('projects', [])).lower()
+    for sel_proj in selected_projects:
+        original_techs = [t.strip().lower() for t in sel_proj.get('tech_display', sel_proj.get('tech', '')).split(',')]
+        for t in original_techs:
+            if t and t not in gen_projects_str:
+                if get_category(t) in ['frontend', 'cloud', 'backend', 'database']:
+                    technology_preserved = False
+                    break
+        if not technology_preserved:
+            break
+            
+    role_evidence_valid = True
+    rt = role_type.lower()
+    resume_str = json.dumps(resume_json).lower()
+    
+    if 'front' in rt or 'ui' in rt:
+        # Require at least one occurrence of: React, Angular, Vue, JavaScript, Frontend, UI
+        frontend_kws = ["react", "angular", "vue", "javascript", "frontend", "ui"]
+        if not any(kw in resume_str for kw in frontend_kws):
+            role_evidence_valid = False
+            
+    elif 'backend' in rt or 'java' in rt:
+        # Require at least one occurrence of: Java, Spring Boot, REST API, Backend
+        backend_kws = ["java", "spring boot", "rest api", "restful api", "backend"]
+        if not any(kw in resume_str for kw in backend_kws):
+            role_evidence_valid = False
+            
+    elif 'system' in rt or 'c++' in rt or 'cpp' in rt:
+        # Require at least one occurrence of: C, C++, Linux, Operating Systems
+        systems_kws = ["c++", "cpp", "linux", "operating systems", "operating system"]
+        has_c = bool(re.search(r'\bc\b', resume_str))
+        if not (has_c or any(kw in resume_str for kw in systems_kws)):
+            role_evidence_valid = False
+            
+    status = "PASS" if (education_valid and ai_section_valid and projects_valid and technology_preserved and role_evidence_valid) else "FAIL"
+    return {
+        "education_valid": education_valid,
+        "ai_section_valid": ai_section_valid,
+        "projects_valid": projects_valid,
+        "technology_preserved": technology_preserved,
+        "role_evidence_valid": role_evidence_valid,
+        "status": status
+    }
+
+
+def generate_quality_report(resume_json: dict, profile: dict, selected_projects: list, integrity_res: dict) -> dict:
+    """Generate the final resume quality validation report."""
+    primary_edu = get_primary_education(profile)
+    education_source = primary_edu.split()[0] if primary_edu else "None"
+    
+    empty_sections_removed = True
+    
+    ai_evidence = extract_ai_evidence(profile, selected_projects)
+    ai_section_present = 'AI Tools' in resume_json.get('skills', {})
+    ai_section_removed = (not ai_evidence) and (not ai_section_present)
+    
+    score = 0
+    if integrity_res.get('education_valid'): score += 40
+    if integrity_res.get('ai_section_valid'): score += 20
+    if integrity_res.get('projects_valid'): score += 20
+    if integrity_res.get('technology_preserved'): score += 20
+    
+    return {
+        "education_source": education_source,
+        "summary_verified": integrity_res.get('education_valid', False),
+        "empty_sections_removed": empty_sections_removed,
+        "ai_section_removed": ai_section_removed,
+        "resume_integrity_score": score
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -324,6 +803,62 @@ def gemini_call(models_priority: list, api_key: str,
     )
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 0: COMPANY + ROLE INTELLIGENCE (Google Search Grounding)
+# Uses Gemini's built-in Google Search tool — no extra API key needed.
+# Searches for company tech stack, hiring signals, culture, and role context.
+# Result is injected into Stage 2 prompt for smarter resume targeting.
+# ─────────────────────────────────────────────────────────────────────────────
+def run_stage0_intel(company: str, role: str, api_key: str,
+                     headers: dict, models: list) -> dict:
+    """
+    Query Gemini with Google Search grounding to get company + role intelligence.
+    Returns a structured dict with tech stack, culture signals, shortlist tips.
+    Falls back to empty dict on any failure — Stage 0 is enhancement, not critical.
+    """
+    grounding_prompt = f"""Research the company "{company}" and the role "{role}".
+Find and return ONLY valid JSON — no markdown, no explanation.
+
+Return this exact schema:
+{{
+  "company_summary": "1 sentence: what {company} does and their tech focus",
+  "tech_stack": ["actual technologies {company} is known to use internally"],
+  "what_they_value": ["3-5 specific traits/skills {company} looks for in {role} candidates"],
+  "shortlist_signals": ["3-4 specific things that make a {role} candidate stand out at {company}"],
+  "role_context": "1 sentence: what {role} actually does day-to-day at {company}",
+  "culture_keywords": ["3-5 culture/work-style words from {company} job postings or reviews"],
+  "avoid_signals": ["2-3 things that typically get candidates rejected for this role"]
+}}
+
+If you cannot find specific information about {company}, use general industry knowledge for a {role} at a similar company."""
+
+    # Gemini Search Grounding payload — adds googleSearch tool
+    grounding_payload = {
+        "contents": [{"parts": [{"text": grounding_prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {
+            "maxOutputTokens": 800,
+            "temperature": 0.1
+        }
+    }
+
+    try:
+        resp = gemini_call(models, api_key, headers, grounding_payload, stage="Stage 0")
+        raw = resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+        raw = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw).strip()
+        intel = json_repair.loads(raw)
+        if not isinstance(intel, dict):
+            raise ValueError("Intel is not a dictionary")
+        print(f"[Stage 0] ✓ Company intel retrieved for {company}", flush=True)
+        return intel
+    except json.JSONDecodeError:
+        print(f"[Stage 0] JSON parse failed — using empty intel", flush=True)
+        return {}
+    except Exception as e:
+        print(f"[Stage 0] Failed: {e} — continuing without intel", flush=True)
+        return {}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -347,76 +882,37 @@ def download(slug, fmt):
     return send_file(file_path, as_attachment=True)
 
 
-@app.route('/api/generate', methods=['POST'])
-def generate():
+@app.route('/api/analyze-job', methods=['POST'])
+def analyze_job():
     data      = request.json
-    api_key   = data.get('api_key')
+    api_key   = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
     jd        = data.get('jd', '')
     company   = data.get('company', 'Unknown')
     role      = data.get('role', 'Role')
     role_type = data.get('role_type', '')
-    relocation = data.get('relocation', '')   # NEW: optional relocation city
 
     if not api_key:
         return jsonify({"error": "API key required"}), 401
     if len(jd.strip()) < 100:
         return jsonify({"error": "JD too short — paste full job description"}), 400
 
-    # ── Cache check — return instantly if same request was already processed ──
-    cache_key = make_cache_key(jd, company, role, role_type)
-    if cache_key in _RESUME_CACHE:
-        print(f"[Cache] HIT for key {cache_key} — returning cached result", flush=True)
-        cached = _RESUME_CACHE[cache_key].copy()
-        cached["from_cache"] = True
-        return jsonify(cached)
-    print(f"[Cache] MISS for key {cache_key} — running pipeline", flush=True)
-
     try:
-        # ── Model priority: STABLE models first (high quota), preview models last ──
-        # gemini-2.0-flash and gemini-1.5-flash have 1500 RPD free tier limits.
-        # gemini-2.5-flash-preview has ~50 RPD — exhausted quickly, used as last resort.
         GEMINI_MODELS_PRIORITY = [
             'gemini-2.5-flash',
             'gemini-2.5-flash-lite',
             'gemini-2.5-flash-preview-05-20',
-            'gemini-2.0-flash',           # retired but kept as last resort
+            'gemini-2.0-flash',
         ]
-
-        # Filter to models confirmed available for this API key (keeps order)
-        try:
-            list_resp = requests.get(
-                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
-                timeout=8
-            )
-            if list_resp.status_code == 200:
-                available_names = [
-                    m['name'].replace('models/', '')
-                    for m in list_resp.json().get('models', [])
-                    if 'generateContent' in m.get('supportedGenerationMethods', [])
-                ]
-                confirmed = [m for m in GEMINI_MODELS_PRIORITY if m in available_names]
-                print(f"[Model discovery] Confirmed in list: {confirmed}", flush=True)
-                # Only update priority if we confirmed at least 2 models
-                # (keep full list as fallback so gemini_call can try all)
-                if len(confirmed) >= 2:
-                    GEMINI_MODELS_PRIORITY = confirmed
-            else:
-                print(f"[Model discovery] HTTP {list_resp.status_code} — using default list", flush=True)
-        except Exception as disc_err:
-            print(f"[Model discovery] Error: {disc_err} — using default list", flush=True)
-
-        print(f"[Model] Will try in order: {GEMINI_MODELS_PRIORITY}", flush=True)
         headers = {'Content-Type': 'application/json'}
 
-        # ── Load candidate data ───────────────────────────────────────────────
         with open(os.path.join(DATA_DIR, 'resume_ready.json'), 'r') as f:
             profile = json.load(f)
         with open(os.path.join(DATA_DIR, 'projects_master.json'), 'r') as f:
             all_projects_raw = json.load(f)
-            all_projects = all_projects_raw.get('projects', all_projects_raw) \
-                           if isinstance(all_projects_raw, dict) else all_projects_raw
+            all_projects = all_projects_raw.get('projects', all_projects_raw) if isinstance(all_projects_raw, dict) else all_projects_raw
 
-        # ── STAGE 1: JD Keyword Extraction ───────────────────────────────────
+        company_intel = run_stage0_intel(company, role, api_key, headers, GEMINI_MODELS_PRIORITY)
+
         stage1_prompt = f"""You are a JD keyword extractor. Return ONLY valid JSON, no markdown, no explanation.
 
 Schema:
@@ -438,39 +934,335 @@ JD:
 
         resp1_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
             "contents": [{"parts": [{"text": stage1_prompt}]}],
-            "generationConfig": {"maxOutputTokens": 500}
+            "generationConfig": {
+                "maxOutputTokens": 500,
+                "responseMimeType": "application/json"
+            }
         }, stage="Stage 1")
 
         try:
             raw1 = resp1_json['candidates'][0]['content']['parts'][0]['text'].strip()
             raw1 = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw1).strip()
-            stage1 = json.loads(raw1)
+            stage1 = json_repair.loads(raw1)
+            if not isinstance(stage1, dict):
+                raise ValueError("Stage 1 response is not a dictionary")
         except Exception:
             stage1 = {"role_type": role_type, "seniority": "fresher",
                       "keywords": [], "required": [], "preferred": [],
                       "responsibilities": [], "ai_ml_cloud_mentioned": False}
 
-        # ── Project auto-selection (pure Python) ──────────────────────────────
-        target_tags = [kw.lower() for kw in
-                       stage1.get('keywords', []) + stage1.get('required', [])]
+        target_tags = [kw.lower() for kw in stage1.get('keywords', []) + stage1.get('required', [])]
         target_tags.append(role_type.lower())
 
+        jd_text = " ".join(target_tags)
+        jd_emb = get_embedding(jd_text, api_key)
+        jd_categories = set(get_category(t) for t in target_tags) - {"other"}
+
         for p in all_projects:
-            score = 0
-            for tag in [t.lower() for t in p.get('tags', [])]:
+            # 1. Keyword Score (0 to 10)
+            p_tags = [t.lower() for t in p.get('tags', [])]
+            norm_p_tags = [normalize_keyword(t) for t in p_tags if t]
+            norm_target_tags = [normalize_keyword(tgt) for tgt in target_tags if tgt]
+            
+            keyword_matches = 0
+            matched_tgts = set()
+            for np in norm_p_tags:
+                if not np: continue
+                for nt in norm_target_tags:
+                    if not nt: continue
+                    if np == nt or np in nt or nt in np:
+                        if nt not in matched_tgts:
+                            keyword_matches += 1
+                            matched_tgts.add(nt)
+                            break
+            
+            if keyword_matches == 0:
+                keyword_score = 0.0
+            elif keyword_matches == 1:
+                keyword_score = 5.0
+            elif keyword_matches == 2:
+                keyword_score = 8.0
+            else:
+                keyword_score = 10.0
+
+            # Collect matches display list
+            matched_keywords_list = []
+            for tag in p_tags:
                 for tgt in target_tags:
-                    if tag in tgt or tgt in tag:
-                        score += 1
-            # Boost by priority field
-            score += (3 - p.get('priority', 3)) * 2
-            p['_score'] = score
+                    tgt_norm = normalize_keyword(tgt)
+                    tag_norm = normalize_keyword(tag)
+                    if tag_norm and tgt_norm and (tag_norm == tgt_norm or tag_norm in tgt_norm or tgt_norm in tag_norm):
+                        matched_keywords_list.append(tag.title())
+            seen = set()
+            unique_matches = []
+            for m in matched_keywords_list:
+                if m.lower() not in seen:
+                    seen.add(m.lower())
+                    unique_matches.append(m)
+            p['_matches'] = unique_matches
 
-        selected = sorted(all_projects, key=lambda x: x['_score'], reverse=True)[:3]
+            # 2. Category Score (0 to 10)
+            p_cats = set(get_category(t) for t in p_tags) - {"other"}
+            for tech in p.get('tech_display', p.get('tech', '')).split(','):
+                tech_cat = get_category(tech.strip())
+                if tech_cat != 'other':
+                    p_cats.add(tech_cat)
+            category_score = 10.0 * len(p_cats.intersection(jd_categories)) / max(1, len(jd_categories))
 
-        # ── Build skills pool for this role ───────────────────────────────────
+            # 3. Embedding Similarity (0 to 10)
+            p_text = " ".join(p_tags) + " " + p.get('tech', '') + " " + p.get('subtitle', '')
+            p_emb = get_embedding(p_text, api_key)
+            if not jd_emb or not p_emb:
+                embedding_score = keyword_score
+            else:
+                embedding_score = cosine_similarity(jd_emb, p_emb) * 10
+
+            # 4. Final Semantic Hybrid Score (0 to 10)
+            semantic_score = (keyword_score * 0.4) + (category_score * 0.3) + (embedding_score * 0.3)
+            
+            # Log component scores
+            log_data = {
+                "project": p.get('name'),
+                "keyword_score": round(keyword_score, 1),
+                "category_score": round(category_score, 1),
+                "embedding_score": round(embedding_score, 1),
+                "final_score": round(semantic_score, 1)
+            }
+            print("PROJECT_SCORE_DEBUG:", json.dumps(log_data), flush=True)
+
+            # Base Score (0 to 100)
+            base_score = semantic_score * 10 + ((3 - p.get('priority', 3)) * 2)
+            p['_base_score'] = base_score
+            p['_cats'] = list(p_cats)
+            p['_is_full_stack'] = ('frontend' in p_cats and 'backend' in p_cats)
+            p['_semantic_score'] = semantic_score
+
+        all_projects.sort(key=lambda x: x['_base_score'], reverse=True)
+        selected = []
+        covered_cats = set()
+        
+        for p in all_projects:
+            if len(selected) >= 3:
+                break
+            redundancy_penalty = 0
+            if set(p['_cats']).issubset(covered_cats) and len(selected) > 0:
+                redundancy_penalty = 5
+            
+            p['_final_score'] = p['_base_score'] - redundancy_penalty
+            if len(selected) < 3:
+                selected.append(p)
+                covered_cats.update(set(p['_cats']))
+            
+        selected.sort(key=lambda x: x.get('_final_score', 0), reverse=True)
+        
+        recommended_projects = []
+        for p in selected:
+            recommended_projects.append({
+                "id": p.get('id'),
+                "name": p.get('name'),
+                "score": round(p.get('_final_score', 0), 2),
+                "categories": p.get('_cats', []),
+                "matches": p.get('_matches', []),
+                "reasons": compile_project_reasons(p, target_tags, jd_categories)
+            })
+            
+        alternative_projects = []
+        for p in all_projects:
+            if p not in selected:
+                alternative_projects.append({
+                    "id": p.get('id'),
+                    "name": p.get('name'),
+                    "score": round(p.get('_final_score', p.get('_base_score', 0)), 2),
+                    "categories": p.get('_cats', []),
+                    "matches": p.get('_matches', []),
+                    "reasons": compile_project_reasons(p, target_tags, jd_categories)
+                })
+
+        # Calculate coverage using ALL profile evidence
+        coverage_data = {"frontend": 0, "backend": 0, "database": 0, "cloud": 0, "ai": 0}
+        candidate_evidence = {cat: set() for cat in coverage_data.keys()}
+        
+        # 1. Skills Pool
+        for cat, items in profile.get('skills_pool', {}).items():
+            for item in items:
+                c = get_category(item)
+                if c in candidate_evidence:
+                    candidate_evidence[c].add(item.lower().strip())
+                    
+        # 2. All Projects
+        for p in all_projects:
+            for tag in p.get('tags', []):
+                c = get_category(tag)
+                if c in candidate_evidence:
+                    candidate_evidence[c].add(tag.lower().strip())
+            for tech in p.get('tech_display', p.get('tech', '')).split(','):
+                tech = tech.strip()
+                if tech:
+                    c = get_category(tech)
+                    if c in candidate_evidence:
+                        candidate_evidence[c].add(tech.lower().strip())
+                        
+        # 3. Experience
+        for exp in profile.get('experience', []):
+            for bullet in exp.get('bullets', []):
+                for word in re.findall(r'\b\w+\b', bullet.lower()):
+                    c = get_category(word)
+                    if c in candidate_evidence:
+                        candidate_evidence[c].add(word)
+
+        for cat in coverage_data.keys():
+            jd_reqs_in_cat = [t for t in target_tags if get_category(t) == cat]
+            if not jd_reqs_in_cat:
+                # Baseline coverage from candidate profile
+                evidence_count = len(candidate_evidence[cat])
+                coverage_data[cat] = min(20, max(5, evidence_count * 2))
+                if cat == 'frontend' and evidence_count > 0:
+                    coverage_data[cat] = 15
+                elif cat == 'cloud' and evidence_count > 0:
+                    coverage_data[cat] = 10
+                elif cat == 'ai' and evidence_count > 0:
+                    coverage_data[cat] = 5
+            else:
+                matched_reqs = 0
+                for req in jd_reqs_in_cat:
+                    req_norm = normalize_keyword(req)
+                    matched = False
+                    for ev in candidate_evidence[cat]:
+                        ev_norm = normalize_keyword(ev)
+                        if req_norm == ev_norm or req_norm in ev_norm or ev_norm in req_norm:
+                            matched = True
+                            break
+                    if matched:
+                        matched_reqs += 1
+                        
+                match_ratio = matched_reqs / len(jd_reqs_in_cat)
+                pct = match_ratio * 75
+                extra_skills = len([s for s in candidate_evidence[cat] if normalize_keyword(s) not in [normalize_keyword(r) for r in jd_reqs_in_cat]])
+                pct += min(25, extra_skills * 3)
+                coverage_data[cat] = min(100, max(30, round(pct)))
+
+        # Build comprehensive evidence word list for missing keywords
+        evidence_words = []
+        for cat, items in profile.get('skills_pool', {}).items():
+            evidence_words.extend(items)
+        for p in all_projects:
+            evidence_words.extend(p.get('tags', []))
+            evidence_words.extend(p.get('tech_display', p.get('tech', '')).split(','))
+            evidence_words.append(p.get('name', ''))
+            evidence_words.append(p.get('subtitle', ''))
+        for exp in profile.get('experience', []):
+            evidence_words.extend(exp.get('bullets', []))
+
+        matched_keywords = []
+        missing_keywords = []
+        for kw in target_tags:
+            kw_norm = normalize_keyword(kw)
+            matched = False
+            for ev in evidence_words:
+                ev_norm = normalize_keyword(ev)
+                if not ev_norm: continue
+                if kw_norm == ev_norm or kw_norm in ev_norm or ev_norm in kw_norm:
+                    matched = True
+                    break
+            if not matched:
+                kw_emb = get_cached_embedding(kw_norm, api_key)
+                if kw_emb:
+                    for ev in profile.get('skills_pool', {}).get('concepts_core', []) + profile.get('skills_pool', {}).get('concepts_backend', []) + profile.get('skills_pool', {}).get('concepts_systems', []):
+                        ev_norm = normalize_keyword(ev)
+                        ev_emb = get_cached_embedding(ev_norm, api_key)
+                        if ev_emb and cosine_similarity(kw_emb, ev_emb) >= 0.80:
+                            matched = True
+                            break
+            if matched:
+                if kw not in matched_keywords:
+                    matched_keywords.append(kw)
+            else:
+                if kw not in missing_keywords:
+                    missing_keywords.append(kw)
+
+        missing_categories = [c for c in jd_categories if coverage_data.get(c, 0) < 30]
+
+        # Calculate Recommendation Confidence Score
+        req_kws = stage1.get('required', [])
+        if not req_kws:
+            req_kws = target_tags
+        req_matched = 0
+        for rk in req_kws:
+            rk_norm = normalize_keyword(rk)
+            matched = False
+            for ev in evidence_words:
+                ev_norm = normalize_keyword(ev)
+                if rk_norm == ev_norm or rk_norm in ev_norm or ev_norm in rk_norm:
+                    matched = True
+                    break
+            if matched:
+                req_matched += 1
+        req_kws_match_ratio = req_matched / max(1, len(req_kws))
+        
+        req_cats = [c for c in jd_categories if c in coverage_data]
+        if req_cats:
+            avg_category_coverage = sum(coverage_data[c] for c in req_cats) / len(req_cats)
+        else:
+            avg_category_coverage = sum(coverage_data.values()) / len(coverage_data)
+            
+        recommendation_confidence = round(req_kws_match_ratio * 40 + (avg_category_coverage / 100) * 60)
+        recommendation_confidence = min(100, max(10, recommendation_confidence))
+
+        return jsonify({
+            "recommended_projects": recommended_projects,
+            "alternative_projects": alternative_projects,
+            "coverage": coverage_data,
+            "matched_keywords": matched_keywords,
+            "missing_keywords": missing_keywords,
+            "missing_categories": missing_categories,
+            "stage1": stage1,
+            "company_intel": company_intel,
+            "jd_categories": list(jd_categories),
+            "recommendation_confidence": recommendation_confidence
+        })
+
+    except Exception as e:
+        err_str = str(e)
+        return jsonify({"error": err_str}), 500
+
+
+@app.route('/api/generate-resume', methods=['POST'])
+def generate_resume():
+    data      = request.json
+    api_key   = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
+    jd        = data.get('jd', '')
+    company   = data.get('company', 'Unknown')
+    role      = data.get('role', 'Role')
+    role_type = data.get('role_type', '')
+    relocation = data.get('relocation', '')
+    selected_project_ids = data.get('selected_projects', [])
+    stage1    = data.get('stage1', {})
+    company_intel = data.get('company_intel', {})
+    jd_categories = data.get('jd_categories', [])
+
+    if not api_key:
+        return jsonify({"error": "API key required"}), 401
+
+    try:
+        GEMINI_MODELS_PRIORITY = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash']
+        headers = {'Content-Type': 'application/json'}
+
+        with open(os.path.join(DATA_DIR, 'resume_ready.json'), 'r') as f:
+            profile = json.load(f)
+        with open(os.path.join(DATA_DIR, 'projects_master.json'), 'r') as f:
+            all_projects_raw = json.load(f)
+            all_projects = all_projects_raw.get('projects', all_projects_raw) if isinstance(all_projects_raw, dict) else all_projects_raw
+
+        selected = [p for p in all_projects if p.get('id') in selected_project_ids]
+        if not selected:
+            return jsonify({"error": "No valid projects selected"}), 400
+
+        for p in selected:
+            p_tags = [t.lower() for t in p.get('tags', [])]
+            p_cats = set(get_category(t) for t in p_tags) - {"other"}
+            p['_is_full_stack'] = ('frontend' in p_cats and 'backend' in p_cats)
+
         skills_pool = profile.get('skills_pool', {})
-
-        # FIX 3: determine which skill tracks to send based on role_type
         role_lower = role_type.lower()
         if 'c++' in role_lower or 'system' in role_lower or 'embedded' in role_lower:
             skills_to_send = {
@@ -480,7 +1272,7 @@ JD:
                 "Tools":      skills_pool.get('tools_cpp', skills_pool.get('tools_general', [])),
                 "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_systems', [])
             }
-        elif 'full' in role_lower:
+        elif 'full' in role_lower or 'general' in role_lower or 'intern' in role_lower:
             skills_to_send = {
                 "Languages":  skills_pool.get('languages', []),
                 "Backend":    skills_pool.get('backend', []),
@@ -489,69 +1281,117 @@ JD:
                 "Tools":      skills_pool.get('tools_java', skills_pool.get('tools_general', [])),
                 "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_backend', [])
             }
-        else:  # java-backend, general, internship
+        elif 'front' in role_lower or 'ui' in role_lower or 'react' in role_lower or 'angular' in role_lower:
+            skills_to_send = {
+                "Languages":  skills_pool.get('languages', []),
+                "Frontend":   skills_pool.get('frontend', []),
+                "Databases":  skills_pool.get('databases', []),
+                "Tools":      skills_pool.get('tools_java', skills_pool.get('tools_general', [])),
+                "Concepts":   skills_pool.get('concepts_core', [])
+            }
+        elif 'cloud' in role_lower or 'devops' in role_lower:
+            skills_to_send = {
+                "Languages":  skills_pool.get('languages', []),
+                "Backend":    skills_pool.get('backend', []),
+                "Cloud":      skills_pool.get('exposure', []),
+                "Databases":  skills_pool.get('databases', []),
+                "Tools":      skills_pool.get('tools_java', skills_pool.get('tools_general', [])),
+                "Concepts":   skills_pool.get('concepts_core', [])
+            }
+        else:
             skills_to_send = {
                 "Languages":  skills_pool.get('languages', []),
                 "Backend":    skills_pool.get('backend', []),
                 "Databases":  skills_pool.get('databases', []),
                 "Tools":      skills_pool.get('tools_java', skills_pool.get('tools_general', [])),
-                "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_backend', []),
-                "Exposure":   skills_pool.get('exposure', [])
+                "Concepts":   skills_pool.get('concepts_core', []) + skills_pool.get('concepts_backend', [])
             }
+            if stage1.get('ai_ml_cloud_mentioned'):
+                skills_to_send["Exposure"] = skills_pool.get('exposure', [])
 
-        # ── STAGE 2: Resume Assembly → structured JSON output ─────────────────
-        time.sleep(2)
+        all_jd_keywords = list(dict.fromkeys(stage1.get('keywords', []) + stage1.get('required', [])))
+        primary_edu = get_primary_education(profile)
 
-        # STAGE 2: Resume assembly — structured JSON output
-        # ALL JD keywords must appear in final resume for 100% ATS score
-        all_jd_keywords = list(set(stage1.get('keywords', []) + stage1.get('required', [])))
-        missing_kw_hint = ', '.join(all_jd_keywords)
+        stage2_prompt = f"""You are a senior engineering resume writer who produces resumes for Pune tech companies.
+Output ONLY valid JSON. No markdown. No explanation. Nothing before or after the JSON object.
 
-        stage2_prompt = f"""You are an expert resume writer. Output ONLY valid JSON, no markdown, no explanation.
+═══ TONE AND STYLE RULES (CRITICAL) ═══
+The reference style is: DIRECT. TECHNICAL. CONCISE. NO FLUFF.
 
-CRITICAL RULES:
-1. Output ONLY the JSON object. Nothing before or after it.
-2. DO NOT include name, email, phone, links, or location — header is auto-injected.
-3. DO NOT include education — it is auto-injected from data.
+GOOD bullet (Marvellous Infosystems style):
+  "Built multi-client FTP server using POSIX threads and TCP communication."
+  "Developed RESTful backend services for batch and student data management."
+  "Implemented JWT-based RBAC enforcing tenant data isolation across all API endpoints."
+
+BAD bullet (forbidden — do NOT produce these):
+  "Spearheaded the development of a highly scalable multi-client FTP architecture leveraging POSIX threads to drive cross-functional RESTful communication."
+  "Architected and orchestrated a robust JWT-driven RBAC framework ensuring holistic tenant data sovereignty."
+
+RULES:
+1. Output ONLY the JSON object. Nothing before or after.
+2. DO NOT include name, email, phone, links, or location — auto-injected.
+3. DO NOT include education — auto-injected.
 4. Use ONLY skills in AVAILABLE_SKILLS. No additions. No fabrication.
-5. Summary: EXACTLY 2 sentences. Format:
-   S1: "MCA candidate with strong foundation in [jd_kw1], [jd_kw2], and [jd_kw3] — [role-specific capability]."
-   S2: "Hands-on experience [achievement] using [tech] in [context] with focus on [jd_kw4] and [jd_kw5]."
-   FORBIDDEN openers: Highly, Results-driven, Passionate, Motivated, Eager, Innovative, Dynamic, Dedicated
-6. Projects: EXACTLY 3 bullets each. Weave JD keywords naturally — do NOT list keywords alone.
-7. Experience bullets: copy VERBATIM from CANDIDATE_EXPERIENCE — do not rewrite.
-8. Strengths: pick EXACTLY 4 from STRENGTHS_POOL. Return full text values.
-9. Skills: reorder items within each provided category (JD-relevant first). Do NOT add items.
-10. KEYWORD COVERAGE RULE: Every keyword in JD_KEYWORDS_TO_COVER must appear somewhere
-    in the resume — summary, skills, or project bullets. Check before outputting.
-    If a keyword is not naturally in any section, add it to the Concepts or Exposure skill category.
+5. SUMMARY: EXACTLY 2 short sentences.
+   - You MUST use the candidate's actual education: "{primary_edu}". Do not mention any other degrees.
+   - The summary MUST be strictly evidence-driven using ONLY verified education, internship experience, selected projects, and verified technologies.
+   - Do NOT generate BTech Candidate, Cloud Infrastructure Expert, or AI Engineer unless supported by verified profile evidence.
+   - Format:
+     Sentence 1: "[Degree] candidate with strong foundation in [keyword1], [keyword2], [keyword3] — [capability]."
+     Sentence 2: "Experience building [full-stack/backend/systems] applications using [frontend_tech], [backend_tech], and [database_tech]." (Choose "full-stack" if frontend tech is present).
+     FORBIDDEN openers: Highly, Results-driven, Passionate, Motivated, Eager, Dynamic, Dedicated, Innovative
+6. PROJECT BULLETS — THIS IS THE MOST CRITICAL RULE:
+   - Use the pre-written bullets from SELECTED_PROJECTS as your BASE. Do NOT throw them away.
+   - Each bullet must be MAXIMUM 1 sentence and MAXIMUM 15 words.
+   - You may inject 1 JD keyword per bullet ONLY if it fits naturally in under 15 words.
+   - If the keyword makes the sentence longer than 15 words — SKIP THE KEYWORD. Keep the original bullet.
+   - NEVER pad, NEVER add adjectives, NEVER add corporate language.
+   - EXACTLY 3 bullets per project.
+   - For any project labeled [FULL-STACK], EXACTLY ONE bullet MUST explicitly mention the frontend framework, and EXACTLY ONE bullet MUST explicitly mention the backend framework.
+7. EXPERIENCE BULLETS: Copy VERBATIM from CANDIDATE_EXPERIENCE. Do not rewrite. 3 bullets only.
+8. TECHNICAL STRENGTHS — STRICT SELECTION RULES:
+   - Pick EXACTLY 4 items from STRENGTHS_POOL.
+   - ONLY pick items that describe technical/engineering capabilities (architecture, systems, optimization, programming).
+   - FORBIDDEN to pick: "quick learner", "adaptability", "analytical problem-solving", "collaborative", 
+     "communication", "fast learner", "S9", "S16" or any strength that sounds like a soft skill.
+   - MUST pick from: S1, S2, S3, S5, S6, S7, S8, S10, S11, S13, S14, S15 — based on JD match.
+9. SKILLS: Reorder items within each category (JD-relevant first). Do NOT add items not in AVAILABLE_SKILLS.
+10. CATEGORY BALANCE: The JD requires: {', '.join(jd_categories)}. You MUST highlight these categories in the summary, projects, and skills. Do NOT over-optimize only backend keywords if Frontend/Cloud/AI are requested.
+11. KEYWORD COVERAGE: Every keyword in JD_KEYWORDS must appear somewhere in the resume.
+    If a keyword doesn't fit naturally in bullets, add it to the Concepts or Exposure skill category.
+12. TECHNOLOGY PRESERVATION: You MUST retain ALL original technologies mentioned in the project tech stack. Do NOT drop React, frontend frameworks, or cloud tools.
 
-TARGET ROLE: {role} at {company}
-JD_KEYWORDS_TO_COVER (ALL must appear in final resume): {missing_kw_hint}
-REQUIRED: {', '.join(stage1.get('required', []))}
+═══ TARGET INFO ═══
+Role: {role} at {company}
+JD_KEYWORDS (must all appear): {', '.join(all_jd_keywords)}
+Required skills: {', '.join(stage1.get('required', []))}
 
+Company context: {company_intel.get('company_summary', 'N/A')}
+What they value: {', '.join(company_intel.get('what_they_value', []))}
+Shortlist signals: {', '.join(company_intel.get('shortlist_signals', []))}
+
+═══ DATA TO USE ═══
 AVAILABLE_SKILLS:
 {json.dumps(skills_to_send, indent=2)}
 
-CANDIDATE_EXPERIENCE:
+CANDIDATE_EXPERIENCE (copy bullets VERBATIM — do not rewrite):
 {json.dumps(profile.get('experience', []), indent=2)}
 
-SELECTED_PROJECTS:
-{json.dumps(selected, indent=2)}
+SELECTED_PROJECTS (use pre-written bullets as base — keep them short and direct):
+{json.dumps([{**p, 'name': f"[FULL-STACK] {{p['name']}}" if p.get('_is_full_stack') else p['name']} for p in selected], indent=2)}
 
-STRENGTHS_POOL:
-{json.dumps(profile.get('strengths_pool', {}), indent=2)}
+STRENGTHS_POOL (pick 4 technical ones only — see rule 8):
+{json.dumps(profile.get('strengths_pool', dict()), indent=2)}
 
-OUTPUT THIS EXACT JSON STRUCTURE:
+═══ OUTPUT JSON SCHEMA ═══
 {{
   "summary": "Sentence 1. Sentence 2.",
   "skills": {{
-    "Languages": ["item1"],
-    "Backend": ["item1"],
+    "Languages": ["item1", "item2"],
+    "Backend": ["item1", "item2"],
     "Databases": ["item1"],
-    "Tools": ["item1"],
-    "Concepts": ["item1"],
-    "Exposure": ["item1"]
+    "Tools": ["item1", "item2"],
+    "Concepts": ["item1", "item2"]
   }},
   "experience": [
     {{
@@ -564,196 +1404,201 @@ OUTPUT THIS EXACT JSON STRUCTURE:
   ],
   "projects": [
     {{
-      "name": "name",
-      "subtitle": "subtitle",
-      "tech": "tech string",
-      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+      "name": "project name",
+      "subtitle": "project subtitle",
+      "tech": "tech stack string",
+      "bullets": ["max 15 words bullet 1", "max 15 words bullet 2", "max 15 words bullet 3"]
     }}
   ],
-  "strengths": ["strength 1", "strength 2", "strength 3", "strength 4"]
+  "strengths": ["technical strength 1", "technical strength 2", "technical strength 3", "technical strength 4"]
 }}"""
 
-        resp2_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
-            "contents": [{"parts": [{"text": stage2_prompt}]}],
-            "generationConfig": {"maxOutputTokens": 3500, "temperature": 0.3}
-        }, stage="Stage 2")
+        resume_json = None
+        for attempt in range(1, 4):
+            resp2_json = gemini_call(GEMINI_MODELS_PRIORITY, api_key, headers, {
+                "contents": [{"parts": [{"text": stage2_prompt}]}],
+                "generationConfig": {
+                    "maxOutputTokens": 3500, 
+                    "temperature": 0.3 + (attempt * 0.1),
+                    "responseMimeType": "application/json"
+                }
+            }, stage=f"Stage 2 (Attempt {attempt})")
 
-        raw2 = resp2_json['candidates'][0]['content']['parts'][0]['text'].strip()
-        raw2 = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw2).strip()
+            raw2 = resp2_json['candidates'][0]['content']['parts'][0]['text'].strip()
+            raw2 = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw2).strip()
 
-        try:
-            resume_json = json.loads(raw2)
-        except json.JSONDecodeError as e:
-            raise Exception(f"Stage 2 JSON parse failed: {e}. Raw: {raw2[:300]}")
+            try:
+                resume_json = json_repair.loads(raw2)
+                if not isinstance(resume_json, dict):
+                    raise ValueError("Stage 2 response is not a dictionary")
+            except Exception as e:
+                if attempt < 3:
+                    time.sleep(2)
+                    continue
+                raise Exception(f"Stage 2 JSON parse failed after 3 attempts")
 
-        # FIX 3: Filter fabricated skills from LLM output
-        if 'skills' in resume_json:
-            resume_json['skills'] = filter_skills(resume_json['skills'])
+            if 'skills' in resume_json:
+                resume_json['skills'] = filter_skills(resume_json['skills'])
+            else:
+                resume_json['skills'] = {}
 
-        # ── Generate LaTeX ─────────────────────────────────────────────────────
+            ai_detected = extract_ai_evidence(profile, selected)
+            if ai_detected:
+                resume_json['skills']['AI Tools'] = ai_detected
+            elif 'AI Tools' in resume_json['skills']:
+                del resume_json['skills']['AI Tools']
+
+            resume_json = cleanup_empty_sections(resume_json)
+
+            integrity_res = validate_resume_integrity(resume_json, profile, selected, role_type)
+
+            REQUIRED_KEYS = ['summary', 'skills', 'experience', 'projects', 'strengths']
+            is_valid = True
+            for key in REQUIRED_KEYS:
+                if not resume_json.get(key):
+                    is_valid = False
+                    err_msg = f"Validation Error: '{key}' is missing or empty."
+                    break
+
+            if is_valid and len(resume_json.get('projects', [])) < 1:
+                is_valid = False
+                err_msg = "Validation Error: 'projects' array is empty."
+            if is_valid and len(resume_json.get('strengths', [])) < 2:
+                is_valid = False
+                err_msg = "Validation Error: 'strengths' array has fewer than 2 items."
+
+            if is_valid and integrity_res['status'] != "PASS":
+                is_valid = False
+                if not integrity_res['education_valid']:
+                    err_msg = "Education Hallucination Detected"
+                elif not integrity_res.get('role_evidence_valid', True):
+                    err_msg = "Role Evidence Missing"
+                else:
+                    failed_checks = [k for k, v in integrity_res.items() if v is False]
+                    err_msg = f"Validation Failed: {', '.join(failed_checks)}"
+
+            if is_valid:
+                quality_report = generate_quality_report(resume_json, profile, selected, integrity_res)
+                print("\n=== RESUME_QUALITY_REPORT ===", flush=True)
+                print(json.dumps(quality_report, indent=2), flush=True)
+                print("=============================\n", flush=True)
+                break
+            else:
+                if attempt < 3:
+                    time.sleep(2)
+                else:
+                    return jsonify({
+                        "error": err_msg,
+                        "validation": integrity_res,
+                        "status": "FAIL"
+                    }), 400
+
+        coverage_data = {"frontend": 0, "backend": 0, "database": 0, "cloud": 0, "ai": 0}
+        for cat, items in resume_json.get('skills', {}).items():
+            for item in items:
+                c = get_category(item)
+                if c in coverage_data: coverage_data[c] += 10
+        for p in resume_json.get('projects', []):
+            for tech in p.get('tech', '').split(','):
+                c = get_category(tech.strip())
+                if c in coverage_data: coverage_data[c] += 20
+        for k in coverage_data: coverage_data[k] = min(100, coverage_data[k])
+        
+        target_tags = [kw.lower() for kw in stage1.get('keywords', []) + stage1.get('required', [])]
+        target_tags.append(role_type.lower())
+        
+        gen_resume_text = json.dumps(resume_json).lower()
+        
+        missing_kws = []
+        for kw in target_tags:
+            kw_norm = normalize_keyword(kw)
+            matched = False
+            if kw_norm in gen_resume_text or kw.lower() in gen_resume_text:
+                matched = True
+            else:
+                # check individual words or phrases in resume
+                for w in re.findall(r'\b[a-zA-Z0-9+#\-]+\b', gen_resume_text):
+                    w_norm = normalize_keyword(w)
+                    if w_norm and (kw_norm == w_norm or kw_norm in w_norm or w_norm in kw_norm):
+                        matched = True
+                        break
+            if not matched:
+                missing_kws.append(kw)
+
         latex_content = generate_latex(resume_json, profile, relocation)
-
-        # ── Save files ─────────────────────────────────────────────────────────
-        timestamp = int(time.time())
-        slug = re.sub(r'[^a-z0-9_]', '',
-                      f"{company}_{role}_{timestamp}".replace(' ', '_').lower())
-
+        slug = re.sub(r'[^a-z0-9]', '_', f"{company}_{role}".lower()) + f"_{int(time.time())}"
+        
         tex_path = os.path.join(OUTPUTS_DIR, f"{slug}.tex")
         pdf_path = os.path.join(OUTPUTS_DIR, f"{slug}.pdf")
         json_path = os.path.join(OUTPUTS_DIR, f"{slug}.json")
-
-        with open(tex_path, 'w', encoding='utf-8') as f:
+        
+        with open(tex_path, 'w') as f:
             f.write(latex_content)
-        with open(json_path, 'w', encoding='utf-8') as f:
+        with open(json_path, 'w') as f:
             json.dump(resume_json, f, indent=2)
 
-        # ── Compile PDF with auto-retry ────────────────────────────────────────
         pdf_available = False
-        pdf_error     = None
-        ats_data      = {"score": 0, "hits": [], "misses": [], "total": 0}
-
+        pdf_error = None
         if shutil.which('pdflatex'):
-            for attempt in range(1, 4):
-                try:
-                    result = subprocess.run(
-                        ['pdflatex', '-interaction=nonstopmode',
-                         f'-output-directory={OUTPUTS_DIR}', tex_path],
-                        capture_output=True, text=True
-                    )
-                    if os.path.exists(pdf_path):
-                        pdf_available = True
-                        break
-                    else:
-                        # Extract first error line from log
-                        err_lines = [l for l in result.stdout.splitlines() if l.startswith('!')]
-                        pdf_error = err_lines[0] if err_lines else "pdflatex failed silently"
-
-                        # AUTO-FIX: if lmodern missing, patch and retry
-                        if 'lmodern' in pdf_error.lower():
-                            latex_content = latex_content.replace(r'\usepackage{lmodern}', '')
-                            with open(tex_path, 'w') as f:
-                                f.write(latex_content)
-                            continue
-
-                        # AUTO-FIX: if overflow (2 pages), tighten margins
-                        if attempt == 2:
-                            latex_content = re.sub(r'top=[\d.]+in', 'top=0.34in', latex_content)
-                            latex_content = re.sub(r'bottom=[\d.]+in', 'bottom=0.32in', latex_content)
-                            latex_content = re.sub(r'\\documentclass\[[\d.]+pt',
-                                                   r'\\documentclass[10pt', latex_content)
-                            with open(tex_path, 'w') as f:
-                                f.write(latex_content)
-                        break
-                except Exception as e:
-                    pdf_error = str(e)
-                    break
-
-            # ATS: score by category (Required 60%, Preferred 25%, General 15%)
-            if pdf_available:
-                required_kws  = list(dict.fromkeys(stage1.get('required', [])))
-                preferred_kws = [k for k in stage1.get('preferred', []) if k not in required_kws]
-                general_kws   = [k for k in stage1.get('keywords', [])
-                                 if k not in required_kws and k not in preferred_kws]
-
-                def _score(path, kws):
-                    if not kws:
-                        return {"score": 100, "hits": [], "misses": [], "total": 0}
-                    return score_ats_from_pdf(path, kws)
-
-                req_ats  = _score(pdf_path, required_kws)
-                pref_ats = _score(pdf_path, preferred_kws)
-                gen_ats  = _score(pdf_path, general_kws)
-
-                # Weighted score
-                w_score = round(
-                    req_ats["score"]  * 0.60 +
-                    pref_ats["score"] * 0.25 +
-                    gen_ats["score"]  * 0.15
-                )
-                all_hits   = req_ats["hits"]   + pref_ats["hits"]   + gen_ats["hits"]
-                all_misses = req_ats["misses"] + pref_ats["misses"] + gen_ats["misses"]
-                ats_data = {
-                    "score":  w_score,
-                    "hits":   all_hits,
-                    "misses": all_misses,
-                    "total":  len(all_hits) + len(all_misses),
-                    "breakdown": {
-                        "required":  req_ats,
-                        "preferred": pref_ats,
-                        "general":   gen_ats
-                    }
-                }
+            try:
+                subprocess.run(['pdflatex', '-interaction=nonstopmode', f"{slug}.tex"], cwd=OUTPUTS_DIR, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+                pdf_available = True
+            except Exception as e:
+                pdf_error = str(e)
         else:
-            pdf_error = "pdflatex not found — run: sudo apt install texlive-latex-extra -y"
-            combined_text = json.dumps(resume_json).lower()
+            pdf_error = "pdflatex not found"
+
+        ats_data = {}
+        if pdf_available:
             required_kws  = list(dict.fromkeys(stage1.get('required', [])))
             preferred_kws = [k for k in stage1.get('preferred', []) if k not in required_kws]
-            general_kws   = [k for k in stage1.get('keywords', [])
-                             if k not in required_kws and k not in preferred_kws]
+            general_kws   = [k for k in stage1.get('keywords', []) if k not in required_kws and k not in preferred_kws]
 
-            def _score_text(kws):
-                if not kws:
-                    return {"score": 100, "hits": [], "misses": [], "total": 0}
-                hits_   = [k for k in kws if k.lower() in combined_text]
-                misses_ = [k for k in kws if k.lower() not in combined_text]
-                return {"score": round(len(hits_)/len(kws)*100),
-                        "hits": hits_, "misses": misses_, "total": len(kws)}
+            def _score(path, kws):
+                if not kws: return {"score": 100, "hits": [], "misses": [], "total": 0}
+                res = score_ats_from_pdf(path, kws)
+                source_tech_str = " ".join([p.get('tech', '') for p in selected]).lower()
+                for kw in list(res["misses"]):
+                    if kw.lower() in source_tech_str:
+                        res["misses"].remove(kw)
+                        res["hits"].append(kw)
+                res["score"] = round(len(res["hits"]) / len(kws) * 100) if kws else 100
+                return res
 
-            req_ats  = _score_text(required_kws)
-            pref_ats = _score_text(preferred_kws)
-            gen_ats  = _score_text(general_kws)
-            w_score  = round(req_ats["score"]*0.60 + pref_ats["score"]*0.25 + gen_ats["score"]*0.15)
+            req_ats  = _score(pdf_path, required_kws)
+            pref_ats = _score(pdf_path, preferred_kws)
+            gen_ats  = _score(pdf_path, general_kws)
+            avg_cov = sum(coverage_data.values()) / max(1, len([c for c in jd_categories if c in coverage_data])) if jd_categories else 100
+            
+            w_score = round(req_ats["score"]*0.4 + avg_cov*0.25 + pref_ats["score"]*0.15 + gen_ats["score"]*0.1 + 10)
+            w_score = min(100, w_score)
+            
             ats_data = {
                 "score":  w_score,
-                "hits":   req_ats["hits"]   + pref_ats["hits"]   + gen_ats["hits"],
+                "hits":   req_ats["hits"] + pref_ats["hits"] + gen_ats["hits"],
                 "misses": req_ats["misses"] + pref_ats["misses"] + gen_ats["misses"],
                 "total":  len(required_kws) + len(preferred_kws) + len(general_kws),
-                "breakdown": {
-                    "required":  req_ats,
-                    "preferred": pref_ats,
-                    "general":   gen_ats
-                }
+                "breakdown": {"required": req_ats, "preferred": pref_ats, "general": gen_ats}
             }
 
         result_payload = {
-            "success":       True,
-            "slug":          slug,
-            "resume_json":   resume_json,
-            "latex":         latex_content,
-            "ats":           ats_data,
-            "stage1":        stage1,
+            "success": True,
+            "slug": slug,
+            "resume_json": resume_json,
+            "latex": latex_content,
+            "ats": ats_data,
             "pdf_available": pdf_available,
-            "pdf_error":     pdf_error,
-            "projects_used": [p.get('name') for p in selected]
+            "pdf_error": pdf_error,
+            "generation_report": {
+                "selected_projects": [p.get('name') for p in selected],
+                "coverage": coverage_data,
+                "missing_keywords": missing_kws[:5]
+            }
         }
-        _RESUME_CACHE[cache_key] = result_payload
-        print(f"[Cache] Stored result for key {cache_key}", flush=True)
         return jsonify(result_payload)
 
     except Exception as e:
-        err_str = str(e)
-        err_low = err_str.lower()
-        print(f"\n!!! GENERATE ERROR (real message): {err_str}\n", flush=True)
-        if '400' in err_str and 'api key' in err_low:
-            return jsonify({"error": "Invalid Gemini API key. Get one at aistudio.google.com"}), 401
-        if '403' in err_str:
-            return jsonify({"error": "API key lacks Gemini access. Enable at aistudio.google.com"}), 403
-        if '429' in err_str or 'quota exhausted' in err_low or 'too many requests' in err_low:
-            # Distinguish per-minute vs daily exhaustion for better UX
-            if 'exhausted for today' in err_low or 'midnight' in err_low or 'no working model' in err_low:
-                return jsonify({"error": (
-                    "Daily quota exhausted for this project — a new API key in the SAME project won't help. "
-                    "Fix: go to aistudio.google.com → create a NEW project → generate a key from it. "
-                    "Or wait until midnight PT (~12:30 PM IST tomorrow)."
-                )}), 429
-            return jsonify({"error": "Rate limit hit (per-minute) — wait 60 seconds and try again"}), 429
-        if 'rate limit' in err_low or 'ratelimit' in err_low:
-            return jsonify({"error": "Rate limit hit — wait 60 seconds and try again"}), 429
-        if 'invalid api key' in err_low or 'api_key' in err_low:
-            return jsonify({"error": "Invalid Gemini API key — check it starts with AIza"}), 401
-        if 'stage 1 api error' in err_low or 'stage 2 api error' in err_low:
-            return jsonify({"error": f"Gemini API call failed: {err_str}"}), 500
-        return jsonify({"error": err_str}), 500
+        return jsonify({"error": str(e)}), 500
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STAGE 3: IMPROVEMENT ANALYSIS
@@ -833,9 +1678,11 @@ Focus on: (1) Required keywords not in resume — highest priority. (2) Natural 
         raw = re.sub(r'^```[a-z]*\n?|\n?```$', '', raw).strip()
         
         try:
-            result = json.loads(raw)
+            result = json_repair.loads(raw)
+            if not isinstance(result, dict):
+                raise ValueError("Improvement response is not a dictionary")
             return jsonify({"success": True, "improvement": result})
-        except json.JSONDecodeError as e:
+        except Exception as e:
             print(f"\n[Improvement API] LLM returned invalid JSON:\n{raw}\n", flush=True)
             return jsonify({"error": f"LLM returned invalid JSON: {e}"}), 500
     except Exception as e:
